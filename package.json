@@ -9,7 +9,7 @@
     "deploy": "npm run build && wrangler deploy",
     "preview": "npm run build && vite preview",
     "cf-typegen": "wrangler types",
-    "postinstall": "wrangler types",
+    "postinstall": "wrangler types && node scripts/patch-wrangler-secrets-check.mjs",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
