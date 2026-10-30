@@ -67,7 +67,7 @@
 				{
 					"binding": "DB",
 					"database_name": "event-share-prod",
-					"database_id": "REPLACE_WITH_PRODUCTION_D1_DATABASE_ID",
+					"database_id": "25136523-faf7-4376-b107-0f1d32493847",
 					"migrations_dir": "drizzle/migrations"
 				}
 			],
