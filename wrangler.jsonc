@@ -55,9 +55,10 @@
 	},
 	"env": {
 		"production": {
+			"name": "event-share",
 			"vars": {
 				"APP_TIMEZONE": "Asia/Tokyo",
-				"BETTER_AUTH_URL": "https://event-share.example.workers.dev",
+				"BETTER_AUTH_URL": "https://event-share.eventshare.workers.dev",
 				"SIGNUP_MODE": "open",
 				"SCHOOL_EMAIL_DOMAINS": "",
 				"AI_PROVIDER": "groq",
