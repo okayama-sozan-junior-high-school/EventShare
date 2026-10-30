@@ -5,7 +5,7 @@ import { cn } from "~/lib/utils"
 
 function NativeSelect({ className, children, ...props }: React.ComponentProps<"select">) {
   return (
-    <div className="relative">
+    <div className="relative min-w-0">
       <select
         data-slot="native-select"
         className={cn(

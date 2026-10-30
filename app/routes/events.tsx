@@ -53,8 +53,8 @@ function Filters({
   categories: Route.ComponentProps["loaderData"]["categories"];
 }) {
   return (
-    <div className="grid gap-5">
-      <fieldset className="grid gap-2">
+    <div className="grid min-w-0 gap-5">
+      <fieldset className="grid min-w-0 gap-2">
         <legend className="mb-2 text-sm font-semibold">カテゴリ</legend>
         <div className="flex flex-wrap gap-1.5">
           {categories.map((c) => (
@@ -74,12 +74,17 @@ function Filters({
         </div>
       </fieldset>
 
-      <fieldset className="grid gap-2">
+      <fieldset className="grid min-w-0 gap-2">
         <legend className="mb-2 text-sm font-semibold">開催時期</legend>
-        <div className="flex items-center gap-2">
-          <Input type="date" name="from" defaultValue={params.from} aria-label="開催期間の開始日" />
-          <span className="text-muted-foreground">〜</span>
-          <Input type="date" name="to" defaultValue={params.to} aria-label="開催期間の終了日" />
+        <div className="grid grid-cols-[auto_1fr] items-center gap-x-2 gap-y-1.5 text-sm">
+          <Label htmlFor="f-from" className="font-normal text-muted-foreground">
+            から
+          </Label>
+          <Input id="f-from" type="date" name="from" defaultValue={params.from} />
+          <Label htmlFor="f-to" className="font-normal text-muted-foreground">
+            まで
+          </Label>
+          <Input id="f-to" type="date" name="to" defaultValue={params.to} />
         </div>
       </fieldset>
 
@@ -94,7 +99,7 @@ function Filters({
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="grid gap-2">
+        <div className="grid min-w-0 gap-2">
           <Label htmlFor="f-format">開催形式</Label>
           <NativeSelect id="f-format" name="format" defaultValue={params.format ?? ""}>
             <option value="">すべて</option>
@@ -102,7 +107,7 @@ function Filters({
             <option value="online">オンライン</option>
           </NativeSelect>
         </div>
-        <div className="grid gap-2">
+        <div className="grid min-w-0 gap-2">
           <Label htmlFor="f-fee">参加費</Label>
           <NativeSelect id="f-fee" name="fee" defaultValue={params.fee ?? ""}>
             <option value="">すべて</option>
@@ -202,7 +207,7 @@ export default function Events({ loaderData }: Route.ComponentProps) {
         <aside
           id="filters"
           className={cn(
-            "rounded-xl border bg-card p-4 lg:row-span-2 lg:row-start-1 lg:block lg:self-start",
+            "min-w-0 rounded-xl border bg-card p-4 lg:row-span-2 lg:row-start-1 lg:block lg:self-start",
             showFilters ? "block" : "hidden",
           )}
           aria-label="絞り込み条件"

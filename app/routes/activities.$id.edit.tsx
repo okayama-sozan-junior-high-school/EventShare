@@ -79,7 +79,7 @@ export default function EditActivity({ loaderData, actionData }: Route.Component
           mediaSlotsLeft={maxMedia - activity.media.length}
         />
         {activity.media.length > 0 && (
-          <fieldset className="grid gap-2">
+          <fieldset className="grid min-w-0 gap-2">
             <legend className="mb-2 text-sm font-medium">登録済みの写真・動画（削除するものを選択）</legend>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {activity.media.map((m) => (

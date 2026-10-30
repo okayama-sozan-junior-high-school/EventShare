@@ -85,7 +85,7 @@ export function EventForm({
           <Input {...field("title")} maxLength={120} required placeholder="例: 高校生AIハッカソン 2026" />
         </FormField>
 
-        <fieldset className="grid gap-2">
+        <fieldset className="grid min-w-0 gap-2">
           <legend className="mb-1.5 text-sm font-medium">
             カテゴリ <span className="ml-1 text-xs font-normal text-destructive">必須</span>
             <span className="ml-2 text-xs font-normal text-muted-foreground">複数選択できます（最大5つ）</span>

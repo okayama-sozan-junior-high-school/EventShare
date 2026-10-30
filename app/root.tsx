@@ -68,7 +68,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#3b4fd8" />
         <Meta />
-        <Links />
+        <Links nonce={nonce} />
       </head>
       <body className="min-h-dvh">
         {children}

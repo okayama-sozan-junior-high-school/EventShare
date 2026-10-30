@@ -56,7 +56,7 @@ export default function AdminSettings({ loaderData, actionData }: Route.Componen
       />
       <Form method="post" className="grid gap-6 rounded-xl border bg-card p-5">
         <FormError message={actionData?.error} />
-        <fieldset className="grid gap-3">
+        <fieldset className="grid min-w-0 gap-3">
           <legend className="mb-2 font-semibold">配点（合計100点）</legend>
           <div className="grid gap-4 sm:grid-cols-5">
             {field("title", "イベント名", config.weights.title, defaults.weights.title)}
@@ -66,7 +66,7 @@ export default function AdminSettings({ loaderData, actionData }: Route.Componen
             {field("description", "概要", config.weights.description, defaults.weights.description)}
           </div>
         </fieldset>
-        <fieldset className="grid gap-3">
+        <fieldset className="grid min-w-0 gap-3">
           <legend className="mb-2 font-semibold">判定の目安</legend>
           <div className="grid gap-4 sm:grid-cols-4">
             {field("high", "重複の可能性が高い（以上）", config.thresholds.high, defaults.thresholds.high)}
