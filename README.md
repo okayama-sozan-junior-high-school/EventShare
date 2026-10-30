@@ -132,12 +132,12 @@ npx wrangler secret put GROQ_API_KEY --env production
 # 4. マイグレーションを適用
 npm run db:migrate:remote
 
-# 5. ビルドしてデプロイ
-CLOUDFLARE_ENV=production npm run build
+# 5. ビルドしてデプロイ（build は本番環境を使います）
+npm run build
 npx wrangler deploy
 ```
 
-`CLOUDFLARE_ENV=production` でビルドすると、`build/server/wrangler.json` に本番環境の設定が出力され、`wrangler deploy` はそれを使用します。
+`npm run build` は `CLOUDFLARE_ENV=production` でビルドし、`build/server/wrangler.json` に本番の D1・R2・公開 URL を出力します。`wrangler deploy` はそれを使います。ローカル開発の `npm run dev` はこれまでどおりトップレベルの開発用設定です。Cloudflare の Git 連携もビルドコマンドが `npm run build` のまま、この本番設定でデプロイされます。
 
 ## セキュリティ
 
