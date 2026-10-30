@@ -29,8 +29,8 @@
 		"APP_TIMEZONE": "Asia/Tokyo",
 		"BETTER_AUTH_URL": "http://localhost:5173",
 		// "open" = anyone can sign up / "domain" = only SCHOOL_EMAIL_DOMAINS
-		"SIGNUP_MODE": "open",
-		"SCHOOL_EMAIL_DOMAINS": "",
+		"SIGNUP_MODE": "domain",
+		"SCHOOL_EMAIL_DOMAINS": "gse.okayama-c.ed.jp",
 		// "groq" | "workers-ai" | "openai" | "none" (rule-based only)
 		"AI_PROVIDER": "groq",
 		"AI_MODEL": "qwen/qwen3.8-27b"
@@ -65,8 +65,8 @@
 			"vars": {
 				"APP_TIMEZONE": "Asia/Tokyo",
 				"BETTER_AUTH_URL": "https://event-share.eventshare.workers.dev",
-				"SIGNUP_MODE": "open",
-				"SCHOOL_EMAIL_DOMAINS": "",
+				"SIGNUP_MODE": "domain",
+				"SCHOOL_EMAIL_DOMAINS": "gse.okayama-c.ed.jp",
 				"AI_PROVIDER": "groq",
 				"AI_MODEL": "qwen/qwen3.8-27b"
 			},
