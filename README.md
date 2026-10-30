@@ -31,7 +31,7 @@
 | 認証 | Better Auth（メール＋パスワード、admin プラグイン） | Drizzle アダプター経由で D1 に保存 |
 | UI | Tailwind CSS v4 + shadcn/ui（radix-nova） | |
 | バリデーション | Zod v4 | |
-| AI | Workers AI（既定: `@cf/meta/llama-3.3-70b-instruct-fp8-fast`、JSON Mode）または OpenAI 互換 API | 未接続時はルールベースで動作 |
+| AI | Groq（既定: `qwen/qwen3.8-27b`、Structured Outputs） | 未設定時はルールベース。`AI_PROVIDER` で Workers AI / OpenAI 互換 API にも切り替え可能 |
 | レート制限 | Workers Rate Limiting バインディング | |
 | 定期実行 | Cron Triggers（毎日 09:00 JST） | 締切・開催日リマインダー、不要ファイル掃除 |
 | テスト | Vitest | 純粋ロジックのユニットテスト |
@@ -63,7 +63,9 @@ npm run admin:grant -- you@example.com --remote   # 本番
 
 ### AI 機能をローカルで使う場合
 
-Workers AI は常に Cloudflare 上で実行されるため、ローカルでは既定で無効（ルールベースで動作）です。使う場合は `npx wrangler login` の後、次のように起動します。
+既定のプロバイダは Groq です。`.dev.vars` に `GROQ_API_KEY`（[Groq Console](https://console.groq.com/keys) で発行）を設定して `npm run dev` すると、チャットと URL 取り込みで AI が動きます。キーが無いときはルールベースで動作します。モデルは `wrangler.jsonc` の `AI_MODEL`（既定 `qwen/qwen3.8-27b`）で変更できます。
+
+Workers AI を使う場合は `wrangler.jsonc` に `ai` バインディングを戻し、`AI_PROVIDER=workers-ai` と Workers AI のモデル ID を設定したうえで、`npx wrangler login` の後、次のように起動します。
 
 ```bash
 CF_REMOTE_BINDINGS=true npm run dev
@@ -82,8 +84,9 @@ OpenAI 互換 API を使う場合は `.dev.vars` に `AI_PROVIDER=openai`、`OPE
 | `APP_TIMEZONE` | var | 表示・入力に使うタイムゾーン（既定 `Asia/Tokyo`）。DB には UTC のミリ秒で保存 |
 | `SIGNUP_MODE` | var | `open`（誰でも登録可）または `domain`（`SCHOOL_EMAIL_DOMAINS` のみ） |
 | `SCHOOL_EMAIL_DOMAINS` | var | 学校メールのドメイン（カンマ区切り、サブドメインも許可） |
-| `AI_PROVIDER` | var | `workers-ai` / `openai` / `none` |
-| `AI_MODEL` | var | 使用するモデル名 |
+| `AI_PROVIDER` | var | `groq` / `workers-ai` / `openai` / `none` |
+| `AI_MODEL` | var | 使用するモデル名（Groq の既定は `qwen/qwen3.8-27b`） |
+| `GROQ_API_KEY` | シークレット | `AI_PROVIDER=groq` の場合 |
 | `OPENAI_API_KEY` | シークレット（任意） | `AI_PROVIDER=openai` の場合のみ |
 | `OPENAI_BASE_URL` | シークレット（任意） | OpenAI 互換 API のベース URL |
 | `CF_REMOTE_BINDINGS` | ローカルのシェル環境変数 | `true` で開発時に Workers AI などのリモートバインディングを使う |
@@ -124,6 +127,7 @@ npx wrangler r2 bucket create event-share-media-prod
 
 # 3. シークレットを設定
 npx wrangler secret put BETTER_AUTH_SECRET --env production
+npx wrangler secret put GROQ_API_KEY --env production
 
 # 4. マイグレーションを適用
 npm run db:migrate:remote
@@ -160,7 +164,7 @@ npm run typecheck
 ```
 app/
   .server/            サーバー専用コード（クライアントバンドルに含まれない）
-    ai/               AI クライアント（Workers AI / OpenAI 互換）
+    ai/               AI クライアント（Groq / Workers AI / OpenAI 互換）
     chat/             AI チャット（条件抽出・ランキング・推薦理由・履歴）
     db/               Drizzle スキーマ・接続
     duplicates/       重複判定（スコア計算・候補検索）

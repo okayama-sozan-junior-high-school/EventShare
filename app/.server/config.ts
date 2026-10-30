@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 
 type OptionalSecrets = {
+  GROQ_API_KEY?: string;
   OPENAI_API_KEY?: string;
   OPENAI_BASE_URL?: string;
 };
@@ -12,12 +13,14 @@ function list(value: string | undefined) {
     .filter(Boolean);
 }
 
-export type AiProviderName = "workers-ai" | "openai" | "none";
+export type AiProviderName = "groq" | "workers-ai" | "openai" | "none";
+
+export const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
 
 /** Typed, validated view over Worker vars / secrets. */
 export function getConfig() {
   const optional = env as unknown as OptionalSecrets;
-  const aiProvider = (["workers-ai", "openai", "none"] as const).includes(
+  const aiProvider = (["groq", "workers-ai", "openai", "none"] as const).includes(
     env.AI_PROVIDER as AiProviderName,
   )
     ? (env.AI_PROVIDER as AiProviderName)
@@ -30,6 +33,7 @@ export function getConfig() {
     schoolEmailDomains: list(env.SCHOOL_EMAIL_DOMAINS),
     aiProvider,
     aiModel: env.AI_MODEL,
+    groqApiKey: optional.GROQ_API_KEY,
     openaiApiKey: optional.OPENAI_API_KEY,
     openaiBaseUrl: optional.OPENAI_BASE_URL || "https://api.openai.com/v1",
   } as const;

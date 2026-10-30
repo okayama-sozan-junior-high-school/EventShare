@@ -7,8 +7,7 @@ export default defineConfig({
   plugins: [
     cloudflare({
       viteEnvironment: { name: "ssr" },
-      // Workers AI only runs remotely and requires a Cloudflare login.
-      // Without it the app falls back to rule-based AI features.
+      // Remote bindings are only needed for Workers AI (`AI_PROVIDER=workers-ai`).
       remoteBindings: process.env.CF_REMOTE_BINDINGS === "true",
     }),
     tailwindcss(),

@@ -2,6 +2,9 @@
 # Generate with: openssl rand -base64 32
 BETTER_AUTH_SECRET=replace-with-a-random-32-plus-character-secret
 
+# Groq API key (https://console.groq.com/keys). Required when AI_PROVIDER=groq.
+# GROQ_API_KEY=
+
 # Only needed when AI_PROVIDER=openai (OpenAI-compatible Chat Completions API).
 # OPENAI_API_KEY=
 # OPENAI_BASE_URL=https://api.openai.com/v1

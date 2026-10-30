@@ -25,9 +25,9 @@
 		// "open" = anyone can sign up / "domain" = only SCHOOL_EMAIL_DOMAINS
 		"SIGNUP_MODE": "open",
 		"SCHOOL_EMAIL_DOMAINS": "",
-		// "workers-ai" | "openai" | "none" (rule-based only)
-		"AI_PROVIDER": "workers-ai",
-		"AI_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+		// "groq" | "workers-ai" | "openai" | "none" (rule-based only)
+		"AI_PROVIDER": "groq",
+		"AI_MODEL": "qwen/qwen3.8-27b"
 	},
 	"d1_databases": [
 		{
@@ -43,9 +43,6 @@
 			"bucket_name": "event-share-media-dev"
 		}
 	],
-	"ai": {
-		"binding": "AI"
-	},
 	"ratelimits": [
 		{ "name": "RL_AUTH", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } },
 		{ "name": "RL_WRITE", "namespace_id": "1002", "simple": { "limit": 30, "period": 60 } },
@@ -63,8 +60,8 @@
 				"BETTER_AUTH_URL": "https://event-share.example.workers.dev",
 				"SIGNUP_MODE": "open",
 				"SCHOOL_EMAIL_DOMAINS": "",
-				"AI_PROVIDER": "workers-ai",
-				"AI_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+				"AI_PROVIDER": "groq",
+				"AI_MODEL": "qwen/qwen3.8-27b"
 			},
 			"d1_databases": [
 				{
@@ -80,9 +77,6 @@
 					"bucket_name": "event-share-media-prod"
 				}
 			],
-			"ai": {
-				"binding": "AI"
-			},
 			"ratelimits": [
 				{ "name": "RL_AUTH", "namespace_id": "2001", "simple": { "limit": 10, "period": 60 } },
 				{ "name": "RL_WRITE", "namespace_id": "2002", "simple": { "limit": 30, "period": 60 } },
