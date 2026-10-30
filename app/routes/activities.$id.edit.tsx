@@ -31,7 +31,7 @@ async function loadOwned(id: string, context: Route.LoaderArgs["context"], reque
 
 export async function loader({ params, context, request }: Route.LoaderArgs) {
   const { activity } = await loadOwned(params.id, context, request);
-  return { activity };
+  return { activity, maxMedia: MAX_MEDIA_PER_REPORT };
 }
 
 export async function action({ params, context, request }: Route.ActionArgs) {
@@ -63,7 +63,7 @@ export async function action({ params, context, request }: Route.ActionArgs) {
 }
 
 export default function EditActivity({ loaderData, actionData }: Route.ComponentProps) {
-  const { activity } = loaderData;
+  const { activity, maxMedia } = loaderData;
   const navigation = useNavigation();
   const [params] = useSearchParams();
   const errors = (actionData?.errors ?? {}) as Record<string, string>;
@@ -76,7 +76,7 @@ export default function EditActivity({ loaderData, actionData }: Route.Component
           values={activity}
           errors={errors}
           lockedEvent={{ id: activity.eventId, title: activity.eventTitle }}
-          mediaSlotsLeft={MAX_MEDIA_PER_REPORT - activity.media.length}
+          mediaSlotsLeft={maxMedia - activity.media.length}
         />
         {activity.media.length > 0 && (
           <fieldset className="grid gap-2">

@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { data, Link, redirect, useFetcher } from "react-router";
-import { getConfig } from "~/.server/config";
 import { createDb } from "~/.server/db";
 import { listActivities } from "~/.server/services/activities";
 import { getEventExtras } from "~/.server/services/event-detail";

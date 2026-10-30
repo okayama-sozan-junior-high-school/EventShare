@@ -21,10 +21,14 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   if (eventId) {
     const event = await getEvent(db, eventId);
     if (event && event.status === "published") {
-      return { lockedEvent: { id: event.id, title: event.title }, eventOptions: [] };
+      return { lockedEvent: { id: event.id, title: event.title }, eventOptions: [], maxMedia: MAX_MEDIA_PER_REPORT };
     }
   }
-  return { lockedEvent: null, eventOptions: await eventOptionsFor(db, user.id, new Date()) };
+  return {
+    lockedEvent: null,
+    eventOptions: await eventOptionsFor(db, user.id, new Date()),
+    maxMedia: MAX_MEDIA_PER_REPORT,
+  };
 }
 
 export async function action({ request, context }: Route.ActionArgs) {
@@ -56,7 +60,7 @@ export default function NewActivity({ loaderData, actionData }: Route.ComponentP
           errors={(actionData?.errors ?? {}) as Record<string, string>}
           eventOptions={loaderData.eventOptions}
           lockedEvent={loaderData.lockedEvent ?? undefined}
-          mediaSlotsLeft={MAX_MEDIA_PER_REPORT}
+          mediaSlotsLeft={loaderData.maxMedia}
         />
         <div className="flex justify-end">
           <Button type="submit" size="lg" disabled={navigation.state === "submitting"}>
