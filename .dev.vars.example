@@ -1,0 +1,7 @@
+# Copy to .dev.vars for local development (never commit .dev.vars).
+# Generate with: openssl rand -base64 32
+BETTER_AUTH_SECRET=replace-with-a-random-32-plus-character-secret
+
+# Only needed when AI_PROVIDER=openai (OpenAI-compatible Chat Completions API).
+# OPENAI_API_KEY=
+# OPENAI_BASE_URL=https://api.openai.com/v1

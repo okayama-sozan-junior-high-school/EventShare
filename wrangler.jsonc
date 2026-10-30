@@ -1,0 +1,97 @@
+/**
+ * Wrangler configuration for Event Share.
+ *
+ * - The top-level config is the development environment (used by `npm run dev`).
+ * - `env.production` is the production environment. Bindings are NOT inherited
+ *   between environments, so every binding is declared again with production
+ *   resource names/IDs. Build with `CLOUDFLARE_ENV=production` to target it.
+ *
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "event-share",
+	"compatibility_date": "2026-10-23",
+	// Better Auth relies on AsyncLocalStorage and node:crypto (native scrypt).
+	"compatibility_flags": ["nodejs_compat"],
+	"main": "./workers/app.ts",
+	"observability": {
+		"enabled": true
+	},
+	"upload_source_maps": true,
+	"vars": {
+		"APP_TIMEZONE": "Asia/Tokyo",
+		"BETTER_AUTH_URL": "http://localhost:5173",
+		// "open" = anyone can sign up / "domain" = only SCHOOL_EMAIL_DOMAINS
+		"SIGNUP_MODE": "open",
+		"SCHOOL_EMAIL_DOMAINS": "",
+		// "workers-ai" | "openai" | "none" (rule-based only)
+		"AI_PROVIDER": "workers-ai",
+		"AI_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "event-share-dev",
+			"database_id": "00000000-0000-0000-0000-000000000000",
+			"migrations_dir": "drizzle/migrations"
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "MEDIA",
+			"bucket_name": "event-share-media-dev"
+		}
+	],
+	"ai": {
+		"binding": "AI"
+	},
+	"ratelimits": [
+		{ "name": "RL_AUTH", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } },
+		{ "name": "RL_WRITE", "namespace_id": "1002", "simple": { "limit": 30, "period": 60 } },
+		{ "name": "RL_AI", "namespace_id": "1003", "simple": { "limit": 20, "period": 60 } },
+		{ "name": "RL_FETCH", "namespace_id": "1004", "simple": { "limit": 10, "period": 60 } }
+	],
+	"triggers": {
+		// 00:00 UTC = 09:00 JST: deadline / event-day reminders
+		"crons": ["0 0 * * *"]
+	},
+	"env": {
+		"production": {
+			"vars": {
+				"APP_TIMEZONE": "Asia/Tokyo",
+				"BETTER_AUTH_URL": "https://event-share.example.workers.dev",
+				"SIGNUP_MODE": "open",
+				"SCHOOL_EMAIL_DOMAINS": "",
+				"AI_PROVIDER": "workers-ai",
+				"AI_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+			},
+			"d1_databases": [
+				{
+					"binding": "DB",
+					"database_name": "event-share-prod",
+					"database_id": "REPLACE_WITH_PRODUCTION_D1_DATABASE_ID",
+					"migrations_dir": "drizzle/migrations"
+				}
+			],
+			"r2_buckets": [
+				{
+					"binding": "MEDIA",
+					"bucket_name": "event-share-media-prod"
+				}
+			],
+			"ai": {
+				"binding": "AI"
+			},
+			"ratelimits": [
+				{ "name": "RL_AUTH", "namespace_id": "2001", "simple": { "limit": 10, "period": 60 } },
+				{ "name": "RL_WRITE", "namespace_id": "2002", "simple": { "limit": 30, "period": 60 } },
+				{ "name": "RL_AI", "namespace_id": "2003", "simple": { "limit": 20, "period": 60 } },
+				{ "name": "RL_FETCH", "namespace_id": "2004", "simple": { "limit": 10, "period": 60 } }
+			],
+			"triggers": {
+				"crons": ["0 0 * * *"]
+			}
+		}
+	}
+}
