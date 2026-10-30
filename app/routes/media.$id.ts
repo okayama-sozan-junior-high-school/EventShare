@@ -29,7 +29,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   if (!("body" in object) || !object.body) {
     return new Response(null, { status: 304, headers });
   }
-  if (object.range && "offset" in object.range) {
+  if (request.headers.has("range") && object.range && "offset" in object.range) {
     const offset = object.range.offset ?? 0;
     const length = object.range.length ?? object.size - offset;
     headers.set("content-range", `bytes ${offset}-${offset + length - 1}/${object.size}`);
