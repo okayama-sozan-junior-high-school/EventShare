@@ -16,8 +16,14 @@
 	"compatibility_flags": ["nodejs_compat"],
 	"main": "./workers/app.ts",
 	"observability": {
-		"enabled": true
-	},
+		"logs": {
+		"enabled": true,
+		"invocation_logs": true
+		},
+		"traces": {
+		"enabled": false
+		}
+  	},
 	"upload_source_maps": true,
 	"vars": {
 		"APP_TIMEZONE": "Asia/Tokyo",
