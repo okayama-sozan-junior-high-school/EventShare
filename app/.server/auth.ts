@@ -11,9 +11,13 @@ function createAuth() {
   const config = getConfig();
   return betterAuth({
     appName: "Event Share",
-    baseURL: config.baseUrl,
+    // Preview URLs change per branch. Trust the request host when it is this
+    // Worker's workers.dev hostname or local dev; BETTER_AUTH_URL is the fallback.
+    baseURL: {
+      allowedHosts: ["*.workers.dev", "localhost:*", "127.0.0.1:*"],
+      fallback: config.baseUrl,
+    },
     secret: env.BETTER_AUTH_SECRET,
-    trustedOrigins: [config.baseUrl],
     database: drizzleAdapter(createDb(), { provider: "sqlite", schema }),
     emailAndPassword: {
       enabled: true,
