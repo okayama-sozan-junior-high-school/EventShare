@@ -89,6 +89,8 @@ OpenAI 互換 API を使う場合は `.dev.vars` に `AI_PROVIDER=openai`、`OPE
 | `GROQ_API_KEY` | シークレット | `AI_PROVIDER=groq` の場合 |
 | `OPENAI_API_KEY` | シークレット（任意） | `AI_PROVIDER=openai` の場合のみ |
 | `OPENAI_BASE_URL` | シークレット（任意） | OpenAI 互換 API のベース URL |
+| `MCP_ACCESS_TOKEN` | シークレット（任意） | 設定すると MCP サーバー（`/mcp`）に `Authorization: Bearer <トークン>` が必須になる。未設定なら認証なし（読み取り専用） |
+| `RL_MCP` | レート制限バインディング | MCP サーバーの呼び出し回数制限（IP ごと 60 回/分）。`wrangler.jsonc` の開発・本番・プレビューの 3 環境に定義済み |
 | `CF_REMOTE_BINDINGS` | ローカルのシェル環境変数 | `true` で開発時に Workers AI などのリモートバインディングを使う |
 
 ## スクリプト
