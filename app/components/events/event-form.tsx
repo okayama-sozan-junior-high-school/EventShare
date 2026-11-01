@@ -13,13 +13,14 @@ export type EventFormValues = Partial<Record<string, string | string[] | undefin
   categoryIds?: string[];
 };
 
-export type FieldSource = "structured" | "meta" | "text" | "ai";
+export type FieldSource = "structured" | "meta" | "text" | "ai" | "previous";
 
 const SOURCE_BADGE: Record<FieldSource, { label: string; className: string }> = {
   structured: { label: "ページから取得", className: "border-emerald-200 bg-emerald-50 text-emerald-700" },
   meta: { label: "ページから取得", className: "border-emerald-200 bg-emerald-50 text-emerald-700" },
   text: { label: "本文から抽出・要確認", className: "border-amber-300 bg-amber-50 text-amber-800" },
   ai: { label: "AIが推定・要確認", className: "border-violet-300 bg-violet-50 text-violet-800" },
+  previous: { label: "前回から引き継ぎ・要確認", className: "border-amber-300 bg-amber-50 text-amber-800" },
 };
 
 type Props = {
@@ -27,6 +28,8 @@ type Props = {
   values: EventFormValues;
   errors?: Record<string, string>;
   sources?: Partial<Record<string, FieldSource>>;
+  /** Shown under the date heading, e.g. the previous edition's schedule. */
+  dateHint?: string;
   /** Fields that cannot be changed (add-info mode: already filled). */
   locked?: string[];
   imagePreviewUrl?: string | null;
@@ -42,6 +45,7 @@ export function EventForm({
   values,
   errors = {},
   sources = {},
+  dateHint,
   locked = [],
   imagePreviewUrl,
   allowRemoveImage,
@@ -152,6 +156,7 @@ export function EventForm({
         <h2 id="sec-date" className="text-base font-semibold">
           日時
         </h2>
+        {dateHint && <p className="-mt-3 text-xs text-muted-foreground">{dateHint}</p>}
         <div className="grid gap-5 sm:grid-cols-2">
           <FormField id="ev-startAt" label={label("開催日時", "startAt")} error={errors.startAt} hint="未定の場合は空欄">
             <Input {...field("startAt")} type="datetime-local" />

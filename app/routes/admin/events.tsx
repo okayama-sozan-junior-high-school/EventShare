@@ -2,6 +2,7 @@ import { data, Form, Link } from "react-router";
 import { createDb } from "~/.server/db";
 import { adminListEvents, deleteEventPermanently, setEventStatus } from "~/.server/services/admin";
 import { getEvent } from "~/.server/services/events";
+import { notifyNewEdition } from "~/.server/services/series";
 import { requireAdmin } from "~/.server/session";
 import { AdminTitle, StatusBadge } from "~/components/admin";
 import { EmptyState } from "~/components/empty-state";
@@ -28,7 +29,10 @@ export async function action({ request, context }: Route.ActionArgs) {
   if (!event) throw data("イベントが見つかりません", { status: 404 });
   const intent = form.get("intent");
   if (intent === "hide") await setEventStatus(db, event.id, "hidden", admin.id);
-  else if (intent === "publish") await setEventStatus(db, event.id, "published", admin.id);
+  else if (intent === "publish") {
+    await setEventStatus(db, event.id, "published", admin.id);
+    if (event.seriesId) await notifyNewEdition(db, { seriesId: event.seriesId, newEventId: event.id });
+  }
   else if (intent === "delete") await deleteEventPermanently(db, event.id);
   else throw data("不正なリクエストです", { status: 400 });
   return { ok: true };

@@ -32,6 +32,12 @@ export function eventInputSchema(timeZone: string) {
       importedImageId: z.string().uuid().optional().or(z.literal("")),
       removeImage: z.literal("on").optional(),
       sourceUrl: optionalHttpUrl,
+      /** Set when posting the next edition of an existing series. Invalid values are ignored. */
+      seriesId: z
+        .string()
+        .trim()
+        .optional()
+        .transform((value) => (value && z.string().uuid().safeParse(value).success ? value : undefined)),
     })
     .superRefine((v, ctx) => {
       if (v.startAt && v.endAt && v.endAt < v.startAt) {
@@ -72,7 +78,10 @@ export const EVENT_FIELDS = [
 
 export type EventField = (typeof EVENT_FIELDS)[number];
 
-export const EVENT_FIELD_LABEL: Record<EventField | "categories" | "image", string> = {
+export const EVENT_FIELD_LABEL: Record<
+  EventField | "categories" | "image" | "tags" | "series" | "editionLabel",
+  string
+> = {
   title: "イベント名",
   description: "概要",
   startAt: "開催日時",
@@ -88,4 +97,7 @@ export const EVENT_FIELD_LABEL: Record<EventField | "categories" | "image", stri
   applicationUrl: "応募フォームURL",
   categories: "カテゴリ",
   image: "画像",
+  tags: "タグ",
+  series: "開催回のつながり",
+  editionLabel: "回ラベル",
 };

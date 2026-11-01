@@ -32,6 +32,7 @@ export const REPORT_TARGET_LABEL = {
   comment: "コメント",
   activity_report: "活動報告",
   user: "ユーザー",
+  endorsement: "おすすめ",
 } as const;
 
 export const NOTIFICATION_TYPE_LABEL = {
@@ -40,7 +41,14 @@ export const NOTIFICATION_TYPE_LABEL = {
   event_soon: "開催日が近い",
   comment: "コメント",
   reaction: "リアクション",
+  new_edition: "新しい回",
   system: "お知らせ",
+} as const;
+
+export const ENDORSEMENT_AUDIENCE_LABEL = {
+  beginner_ok: "初めてでも大丈夫",
+  experienced: "経験者向け",
+  anyone: "誰にでも",
 } as const;
 
 export const VISIBILITY_LABEL = {
@@ -59,11 +67,17 @@ export const GRADE_OPTIONS = [
   "その他",
 ] as const;
 
+export const SERIES_CADENCE_LABEL = {
+  yearly: "毎年",
+  twice_yearly: "年2回",
+} as const;
+
 export const SORT_OPTIONS = {
   new: "新着順",
   start: "開催日が近い順",
   deadline: "締切が近い順",
   popular: "人気順",
+  recommended: "おすすめ順",
 } as const;
 
 export type SortKey = keyof typeof SORT_OPTIONS;

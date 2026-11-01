@@ -24,6 +24,9 @@ export type EventCardData = {
   phase: EventPhase;
   likeCount: number;
   commentCount: number;
+  endorsementCount?: number;
+  editionLabel?: string | null;
+  seriesId?: string | null;
 };
 
 export function placeLabel(format: EventCardData["format"], location: string | null) {
@@ -84,6 +87,11 @@ export function EventCard({ event, className }: { event: EventCardData; classNam
           {event.feeType === "free" && (
             <Badge variant="outline" className="border-emerald-200 font-normal text-emerald-700">
               {FEE_LABEL.free}
+            </Badge>
+          )}
+          {event.editionLabel && (
+            <Badge variant="outline" className="font-normal">
+              {event.editionLabel}
             </Badge>
           )}
         </div>

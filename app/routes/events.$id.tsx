@@ -16,7 +16,8 @@ import {
   Users,
 } from "lucide-react";
 import { useState } from "react";
-import { data, Link, redirect, useFetcher } from "react-router";
+import { data, Form, Link, redirect, useFetcher, useSearchParams } from "react-router";
+import { getConfig } from "~/.server/config";
 import { createDb } from "~/.server/db";
 import { listActivities } from "~/.server/services/activities";
 import { getEventExtras } from "~/.server/services/event-detail";
@@ -33,6 +34,16 @@ import {
   setParticipation,
 } from "~/.server/services/interactions";
 import { notifyComment, notifyReaction } from "~/.server/services/notifications";
+import {
+  attachToSeries,
+  detachToNewSeries,
+  getEventSeriesContext,
+  getSeriesDetail,
+  notifyNewEdition,
+  seriesLinkPermissions,
+  unwatchSeries,
+  watchSeries,
+} from "~/.server/services/series";
 import { getUserById } from "~/.server/services/users";
 import { enforceRateLimit } from "~/.server/rate-limit";
 import { getRequestInfo, getUser, isAdmin, requireUser } from "~/.server/session";
@@ -41,6 +52,7 @@ import { EVENT_FIELD_LABEL } from "~/.server/validation/event";
 import { ActivityCard } from "~/components/activities/activity-card";
 import { DeadlineText, placeLabel } from "~/components/events/event-card";
 import { PhaseBadge } from "~/components/events/phase-badge";
+import { SeriesCandidatePanel } from "~/components/events/series-candidate-panel";
 import { ExternalLink, Linkified } from "~/components/external-link";
 import { PageContainer } from "~/components/page-header";
 import { ReportDialog } from "~/components/report-dialog";
@@ -80,18 +92,22 @@ export async function loader({ params, context }: Route.LoaderArgs) {
     throw data("イベントが見つかりません", { status: 404 });
   }
 
-  const [extras, comments, viewerState, activities, creator] = await Promise.all([
+  const { timeZone } = getConfig();
+  const viewerRef = viewer ? { id: viewer.id, admin: isAdmin(viewer) } : null;
+  const [extras, comments, viewerState, activities, creator, series] = await Promise.all([
     getEventExtras(db, event.id),
     listComments(db, event.id),
     getViewerState(db, viewer?.id, event.id),
     listActivities(db, { eventId: event.id, limit: 6 }),
     event.createdById ? getUserById(db, event.createdById) : null,
+    getEventSeriesContext(db, event, viewerRef, timeZone),
   ]);
 
   const now = new Date();
   return {
     event: { ...event, imageUrl: mediaUrl(event.imageMediaId) },
     phase: getEventPhase(event, now),
+    series,
     creator: creator ? { id: creator.id, name: creator.name } : null,
     ...extras,
     comments,
@@ -112,6 +128,43 @@ export async function action({ request, params, context }: Route.ActionArgs) {
   const form = await request.formData();
   const intent = String(form.get("intent"));
   const { waitUntil } = getRequestInfo(context);
+
+  if (intent === "attach_series" || intent === "detach_series" || intent === "watch_series" || intent === "unwatch_series") {
+    const { timeZone } = getConfig();
+    const detail = event.seriesId ? await getSeriesDetail(db, event.seriesId, user.id, timeZone) : null;
+    const perms = seriesLinkPermissions({
+      userId: user.id,
+      ownerId: event.createdById,
+      admin: isAdmin(user),
+      editionCount: detail?.editionCount ?? 0,
+    });
+    if (intent === "watch_series" || intent === "unwatch_series") {
+      if (!event.seriesId) throw data("シリーズが見つかりません", { status: 404 });
+      const ok =
+        intent === "watch_series"
+          ? await watchSeries(db, user.id, event.seriesId)
+          : await unwatchSeries(db, user.id, event.seriesId);
+      if (!ok) throw data("シリーズが見つかりません", { status: 404 });
+      return { ok: true };
+    }
+    if (intent === "detach_series") {
+      if (!perms.detach) throw data("この回のつながりを外す権限がありません", { status: 403 });
+      const result = await detachToNewSeries(db, { eventId: event.id, userId: user.id, asAdmin: isAdmin(user) });
+      if (!result.ok) throw data("イベントが見つかりません", { status: 404 });
+      throw redirect(`/events/${event.id}`);
+    }
+    if (!perms.attach) throw data("この回を別のシリーズにつなぐ権限がありません", { status: 403 });
+    const seriesId = String(form.get("seriesId") ?? "");
+    const result = await attachToSeries(db, {
+      eventId: event.id,
+      seriesId,
+      userId: user.id,
+      asAdmin: isAdmin(user),
+    });
+    if (!result.ok) throw data("シリーズが見つかりません", { status: 400 });
+    if (result.changed) waitUntil(notifyNewEdition(db, { seriesId, newEventId: event.id }));
+    throw redirect(`/events/${event.id}?linked=1`);
+  }
 
   switch (intent) {
     case "like":
@@ -368,10 +421,32 @@ const HISTORY_LABEL = {
   moderate: "管理者が編集",
 } as const;
 
+function SeriesWatchButton({ watching }: { watching: boolean }) {
+  const fetcher = useFetcher();
+  const user = useCurrentUser();
+  const pending = fetcher.formData?.get("intent");
+  const on = pending === "watch_series" ? true : pending === "unwatch_series" ? false : watching;
+  if (!user) {
+    return (
+      <Button variant="outline" size="sm" asChild>
+        <Link to="/login">次の回をウォッチ</Link>
+      </Button>
+    );
+  }
+  return (
+    <fetcher.Form method="post">
+      <Button type="submit" name="intent" value={on ? "unwatch_series" : "watch_series"} size="sm" variant={on ? "default" : "outline"}>
+        {on ? "ウォッチ中" : "次の回をウォッチ"}
+      </Button>
+    </fetcher.Form>
+  );
+}
+
 export default function EventDetail({ loaderData }: Route.ComponentProps) {
   const {
     event,
     phase,
+    series,
     categories,
     creator,
     contributors,
@@ -384,11 +459,35 @@ export default function EventDetail({ loaderData }: Route.ComponentProps) {
   } = loaderData;
   const tz = useTimeZone();
   const user = useCurrentUser();
+  const [params] = useSearchParams();
+  const [showLinked, setShowLinked] = useState(params.get("linked") === "1");
   const [showHistory, setShowHistory] = useState(false);
   const accepting = isAcceptingApplications(phase);
+  const showSeries =
+    !!series && (series.count > 1 || series.candidates.length > 0 || !!series.previous || !!series.next);
 
   return (
     <PageContainer className="max-w-5xl">
+      {showLinked && series && series.canDetach && (
+        <Alert className="mb-6 border-primary/30 bg-brand-soft/60">
+          <Info />
+          <AlertTitle>「{series.title}」の続きとして登録しました。違う場合は外す</AlertTitle>
+          <AlertDescription>
+            <Link to={`/series/${series.id}`} className="font-medium text-primary">
+              シリーズを見る
+            </Link>
+            <Form method="post" className="mt-2 inline">
+              <Button type="submit" name="intent" value="detach_series" variant="outline" size="sm">
+                外す
+              </Button>
+            </Form>
+            <Button type="button" variant="ghost" size="sm" className="ml-1" onClick={() => setShowLinked(false)}>
+              閉じる
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {event.status !== "published" && (
         <Alert className="mb-6">
           <Info />
@@ -452,14 +551,18 @@ export default function EventDetail({ loaderData }: Route.ComponentProps) {
               labelOff="いいね"
               count={event.likeCount}
             />
-            <ToggleButton
-              on={viewerState.bookmarked}
-              intentOn="bookmark"
-              intentOff="unbookmark"
-              icon={Bookmark}
-              labelOn="お気に入り済み"
-              labelOff="お気に入り"
-            />
+            {phase === "ended" ? (
+              event.seriesId && <SeriesWatchButton watching={series?.watching ?? false} />
+            ) : (
+              <ToggleButton
+                on={viewerState.bookmarked}
+                intentOn="bookmark"
+                intentOff="unbookmark"
+                icon={Bookmark}
+                labelOn="お気に入り済み"
+                labelOff="お気に入り"
+              />
+            )}
             <ToggleButton
               on={viewerState.participated}
               intentOn="participate"
@@ -588,6 +691,36 @@ export default function EventDetail({ loaderData }: Route.ComponentProps) {
               掲載情報は生徒による投稿です。参加前に必ず公式サイトで最新情報を確認してください。
             </p>
           </div>
+
+          {showSeries && series && (
+            <div className="rounded-xl border bg-card p-5">
+              <h2 className="text-sm font-semibold">開催回のつながり</h2>
+              <p className="mt-2 text-sm">
+                <Link to={`/series/${series.id}`} className="font-medium text-primary hover:underline">
+                  {series.title}
+                </Link>
+                <span className="ml-2 text-muted-foreground">全{series.count}回</span>
+              </p>
+              {series.editionLabel && <p className="mt-1 text-sm">この回は{series.editionLabel}</p>}
+              <div className="mt-2 grid gap-1 text-sm">
+                {series.previous && (
+                  <Link to={`/events/${series.previous.id}`} className="text-primary hover:underline">
+                    前回{series.previous.editionLabel ? `（${series.previous.editionLabel}）` : ""}: {series.previous.title}
+                  </Link>
+                )}
+                {series.next && (
+                  <Link to={`/events/${series.next.id}`} className="text-primary hover:underline">
+                    次回{series.next.editionLabel ? `（${series.next.editionLabel}）` : ""}: {series.next.title}
+                  </Link>
+                )}
+              </div>
+              {series.candidates.length > 0 && (
+                <div className="mt-3">
+                  <SeriesCandidatePanel candidates={series.candidates} />
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="rounded-xl border bg-card p-5">
             <h2 className="flex items-center gap-1.5 text-sm font-semibold">
