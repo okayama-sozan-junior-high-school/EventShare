@@ -136,6 +136,46 @@ export const EVENT_FORMATS = ["offline", "online", "hybrid", "unknown"] as const
 export const FEE_TYPES = ["free", "paid", "unknown"] as const;
 export const EVENT_STATUSES = ["published", "hidden", "merged"] as const;
 
+/**
+ * A recurring event ("高校生AIハッカソン"). Every event row is one edition of a
+ * series; one-off events are series with a single edition.
+ */
+export const eventSeries = sqliteTable(
+  "event_series",
+  {
+    id: text("id").primaryKey(),
+    title: text("title").notNull(),
+    /** `normalizeForMatch(stripEditionMarkers(title))` for candidate lookup. */
+    matchKey: text("match_key").notNull(),
+    description: text("description"),
+    watchCount: integer("watch_count").default(0).notNull(),
+    createdById: text("created_by_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("event_series_match_key_idx").on(t.matchKey)],
+);
+
+/** "Notify me when the next edition is posted." */
+export const seriesWatches = sqliteTable(
+  "series_watches",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    seriesId: text("series_id")
+      .notNull()
+      .references(() => eventSeries.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.seriesId] }),
+    index("series_watches_series_idx").on(t.seriesId),
+  ],
+);
+
 export const events = sqliteTable(
   "events",
   {
@@ -169,6 +209,18 @@ export const events = sqliteTable(
     likeCount: integer("like_count").default(0).notNull(),
     bookmarkCount: integer("bookmark_count").default(0).notNull(),
     commentCount: integer("comment_count").default(0).notNull(),
+    /**
+     * Nullable in the DB only because SQLite cannot add a NOT NULL column to
+     * a populated table. The app always sets it; null means broken data.
+     */
+    seriesId: text("series_id").references(() => eventSeries.id, {
+      onDelete: "set null",
+    }),
+    /** Display label of this edition, e.g. `2025` / `第4回` (max 30 chars). */
+    editionLabel: text("edition_label"),
+    /** Month (1-12) of `start_at` in APP_TIMEZONE, computed on write. */
+    startMonth: integer("start_month"),
+    endorsementCount: integer("endorsement_count").default(0).notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -179,6 +231,9 @@ export const events = sqliteTable(
     index("events_status_like_idx").on(t.status, t.likeCount),
     index("events_normalized_url_idx").on(t.normalizedOfficialUrl),
     index("events_created_by_idx").on(t.createdById),
+    index("events_series_start_idx").on(t.seriesId, t.startAt),
+    index("events_status_start_month_idx").on(t.status, t.startMonth),
+    index("events_status_endorsement_idx").on(t.status, t.endorsementCount),
   ],
 );
 
@@ -195,6 +250,53 @@ export const eventCategories = sqliteTable(
   (t) => [
     primaryKey({ columns: [t.eventId, t.categoryId] }),
     index("event_categories_category_idx").on(t.categoryId),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Tags
+// ---------------------------------------------------------------------------
+
+export const TAG_FACET_VALUES = [
+  "audience",
+  "participation",
+  "schedule",
+  "outcome",
+  "other",
+] as const;
+export const TAG_STATUSES = ["active", "hidden"] as const;
+
+export const tags = sqliteTable("tags", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  /** `normalizeTagName(name)`. Unique key and URL segment. */
+  slug: text("slug").notNull().unique(),
+  facet: text("facet", { enum: TAG_FACET_VALUES }).default("other").notNull(),
+  status: text("status", { enum: TAG_STATUSES }).default("active").notNull(),
+  useCount: integer("use_count").default(0).notNull(),
+  createdById: text("created_by_id").references(() => user.id, {
+    onDelete: "set null",
+  }),
+  createdAt: createdAt(),
+});
+
+export const eventTags = sqliteTable(
+  "event_tags",
+  {
+    eventId: text("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    tagId: integer("tag_id")
+      .notNull()
+      .references(() => tags.id, { onDelete: "cascade" }),
+    addedById: text("added_by_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.eventId, t.tagId] }),
+    index("event_tags_tag_idx").on(t.tagId),
   ],
 );
 
@@ -366,6 +468,41 @@ export const activityReports = sqliteTable(
   ],
 );
 
+// ---------------------------------------------------------------------------
+// Endorsements (おすすめ) — left by participants for future students
+// ---------------------------------------------------------------------------
+
+export const ENDORSEMENT_AUDIENCES = ["beginner_ok", "experienced", "anyone"] as const;
+
+export const eventEndorsements = sqliteTable(
+  "event_endorsements",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    eventId: text("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    audience: text("audience", { enum: ENDORSEMENT_AUDIENCES }).notNull(),
+    /** Max 200 chars. */
+    comment: text("comment"),
+    activityReportId: text("activity_report_id").references(
+      () => activityReports.id,
+      { onDelete: "set null" },
+    ),
+    status: text("status", { enum: ["visible", "hidden"] })
+      .default("visible")
+      .notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    uniqueIndex("event_endorsements_user_event_uq").on(t.userId, t.eventId),
+    index("event_endorsements_event_idx").on(t.eventId, t.createdAt),
+  ],
+);
+
 /** Files stored in R2. Every object served from /media/* must have a row. */
 export const mediaAssets = sqliteTable(
   "media_assets",
@@ -399,6 +536,7 @@ export const REPORT_TARGETS = [
   "comment",
   "activity_report",
   "user",
+  "endorsement",
 ] as const;
 export const REPORT_REASONS = [
   "inappropriate",
@@ -456,6 +594,7 @@ export const NOTIFICATION_TYPES = [
   "event_soon",
   "comment",
   "reaction",
+  "new_edition",
   "system",
 ] as const;
 
@@ -495,6 +634,9 @@ export const notificationSettings = sqliteTable("notification_settings", {
   eventSoon: integer("event_soon", { mode: "boolean" }).default(true).notNull(),
   comment: integer("comment", { mode: "boolean" }).default(true).notNull(),
   reaction: integer("reaction", { mode: "boolean" }).default(true).notNull(),
+  newEdition: integer("new_edition", { mode: "boolean" })
+    .default(true)
+    .notNull(),
   updatedAt: updatedAt(),
 });
 
@@ -588,5 +730,13 @@ export type Category = typeof categories.$inferSelect;
 export type Comment = typeof comments.$inferSelect;
 export type ActivityReport = typeof activityReports.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
+export type EventSeries = typeof eventSeries.$inferSelect;
+export type NewEventSeries = typeof eventSeries.$inferInsert;
+export type SeriesWatch = typeof seriesWatches.$inferSelect;
+export type Tag = typeof tags.$inferSelect;
+export type EventTag = typeof eventTags.$inferSelect;
+export type EventEndorsement = typeof eventEndorsements.$inferSelect;
 export type EventFormat = (typeof EVENT_FORMATS)[number];
 export type FeeType = (typeof FEE_TYPES)[number];
+export type TagFacet = (typeof TAG_FACET_VALUES)[number];
+export type EndorsementAudience = (typeof ENDORSEMENT_AUDIENCES)[number];

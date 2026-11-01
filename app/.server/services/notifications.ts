@@ -32,6 +32,7 @@ const SETTING_COLUMN = {
   event_soon: notificationSettings.eventSoon,
   comment: notificationSettings.comment,
   reaction: notificationSettings.reaction,
+  new_edition: notificationSettings.newEdition,
 } as const;
 
 /** Removes users who switched this notification type off. */
@@ -253,15 +254,17 @@ export async function getNotificationSettings(db: Database, userId: string) {
     eventSoon: row?.eventSoon ?? true,
     comment: row?.comment ?? true,
     reaction: row?.reaction ?? true,
+    newEdition: row?.newEdition ?? true,
   };
 }
 
 export type NotificationPrefs = Awaited<ReturnType<typeof getNotificationSettings>>;
 
+/** An omitted `newEdition` keeps the stored value. */
 export async function saveNotificationSettings(
   db: Database,
   userId: string,
-  prefs: NotificationPrefs,
+  prefs: Omit<NotificationPrefs, "newEdition"> & { newEdition?: boolean },
 ) {
   await db
     .insert(notificationSettings)
