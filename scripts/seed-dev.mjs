@@ -22,6 +22,13 @@ const at = (days, hour = 10, minute = 0) => {
 };
 const q = (v) => (v === null || v === undefined ? "NULL" : typeof v === "number" ? String(v) : `'${String(v).replace(/'/g, "''")}'`);
 const norm = (s) => s.normalize("NFKC").toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, "");
+// Simplified stripEditionMarkers() (years only) — enough for the sample titles.
+const YEAR = /(?:19|20)\d{2}/;
+const seriesKey = (title) => norm(title.replace(new RegExp(YEAR, "g"), " "));
+const jstParts = (ms) => {
+  const d = new Date(ms + 9 * 3600_000);
+  return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1 };
+};
 
 const SAMPLE_USER = "00000000-0000-4000-8000-000000000001";
 const NOTE = "※動作確認用のサンプルデータです（実在のイベントではありません）。";
@@ -47,15 +54,23 @@ const lines = [
 ];
 events.forEach((e, i) => {
   const id = `00000000-0000-4000-8000-${String(i + 100).padStart(12, "0")}`;
+  const seriesId = `00000000-0000-4000-8000-${String(i + 200).padStart(12, "0")}`;
+  const start = jstParts(e.start);
+  const seriesTitle = e.title.replace(new RegExp(YEAR, "g"), " ").replace(/\s+/g, " ").trim();
   lines.push(
-    `INSERT OR REPLACE INTO events (id, title, description, start_at, end_at, location, format, organizer, target_audience, fee_type, fee_detail, application_deadline, official_url, status, created_by_id, normalized_title, normalized_official_url, like_count, bookmark_count, created_at, updated_at) VALUES (${[
-      id, e.title, `${e.desc}\n\n${NOTE}`, e.start, e.end, e.location, e.format, e.organizer, e.target, e.fee, e.feeDetail ?? null, e.deadline, null, "published", SAMPLE_USER, norm(e.title), null, (i * 7) % 11, (i * 3) % 5, now - (events.length - i) * 3600_000, now,
+    `INSERT OR REPLACE INTO event_series (id, title, match_key, created_by_id) VALUES (${[
+      seriesId, seriesTitle, seriesKey(e.title), SAMPLE_USER,
+    ].map(q).join(", ")});`,
+    `INSERT OR REPLACE INTO events (id, title, description, start_at, end_at, location, format, organizer, target_audience, fee_type, fee_detail, application_deadline, official_url, status, created_by_id, normalized_title, normalized_official_url, like_count, bookmark_count, series_id, edition_label, start_month, created_at, updated_at) VALUES (${[
+      id, e.title, `${e.desc}\n\n${NOTE}`, e.start, e.end, e.location, e.format, e.organizer, e.target, e.fee, e.feeDetail ?? null, e.deadline, null, "published", SAMPLE_USER, norm(e.title), null, (i * 7) % 11, (i * 3) % 5, seriesId, e.title.match(YEAR)?.[0] ?? String(start.year), start.month, now - (events.length - i) * 3600_000, now,
     ].map(q).join(", ")});`,
     `DELETE FROM event_categories WHERE event_id = ${q(id)};`,
     ...e.cats.map((slug) => `INSERT OR IGNORE INTO event_categories (event_id, category_id) SELECT ${q(id)}, id FROM categories WHERE slug = ${q(slug)};`),
     `INSERT OR IGNORE INTO event_contributions (id, event_id, user_id, type, note) VALUES (${q(`${id.slice(0, -4)}c${String(i).padStart(3, "0")}`)}, ${q(id)}, ${q(SAMPLE_USER)}, 'create', 'サンプルデータ');`,
   );
 });
+// Re-seeding replaces the sample events; drop series left without editions.
+lines.push("DELETE FROM event_series WHERE id NOT IN (SELECT series_id FROM events WHERE series_id IS NOT NULL);");
 
 const dir = mkdtempSync(join(tmpdir(), "event-share-seed-"));
 const file = join(dir, "seed.sql");
