@@ -2,6 +2,7 @@ import {
   Flag,
   FolderTree,
   GitMerge,
+  Tags,
   History,
   LayoutDashboard,
   MessageSquare,
@@ -35,6 +36,7 @@ const NAV = [
   { to: "/admin/users", label: "ユーザー", icon: Users },
   { to: "/admin/comments", label: "コメント", icon: MessageSquare },
   { to: "/admin/categories", label: "カテゴリ", icon: FolderTree },
+  { to: "/admin/tags", label: "タグ", icon: Tags },
   { to: "/admin/history", label: "投稿・編集履歴", icon: History },
   { to: "/admin/settings", label: "重複判定の設定", icon: Settings2 },
 ];

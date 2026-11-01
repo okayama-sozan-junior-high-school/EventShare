@@ -1,5 +1,5 @@
 import { CalendarClock, Heart, MapPin, MessageCircle, Monitor, Timer } from "lucide-react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import { Badge } from "~/components/ui/badge";
 import { daysUntil, formatShortDateTime } from "~/lib/datetime";
 import { FEE_LABEL } from "~/lib/labels";
@@ -27,6 +27,7 @@ export type EventCardData = {
   endorsementCount?: number;
   editionLabel?: string | null;
   seriesId?: string | null;
+  tags?: { name: string; slug: string }[];
 };
 
 export function placeLabel(format: EventCardData["format"], location: string | null) {
@@ -50,18 +51,43 @@ export function DeadlineText({ deadline, phase }: { deadline: Date | null; phase
   );
 }
 
-export function EventCard({ event, className }: { event: EventCardData; className?: string }) {
+function tagFilterHref(slug: string, pathname: string, search: string) {
+  if (pathname !== "/events") return `/tags/${encodeURIComponent(slug)}`;
+  const sp = new URLSearchParams(search);
+  if (!sp.getAll("tag").includes(slug)) sp.append("tag", slug);
+  sp.delete("page");
+  const q = sp.toString();
+  return q ? `/events?${q}` : "/events";
+}
+
+export function EventCard({
+  event,
+  className,
+  editionCount,
+}: {
+  event: EventCardData;
+  className?: string;
+  /** Series size on the tag page. Renders 「全N回」. */
+  editionCount?: number;
+}) {
   const tz = useTimeZone();
+  const location = useLocation();
   const ended = event.phase === "ended";
+  const tags = event.tags ?? [];
+  const shownTags = tags.slice(0, 3);
+  const extraTags = tags.length - shownTags.length;
   return (
-    <Link
-      to={`/events/${event.id}`}
+    <article
       className={cn(
-        "group flex flex-col overflow-hidden rounded-xl border bg-card shadow-xs transition hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+        "group flex flex-col overflow-hidden rounded-xl border bg-card shadow-xs transition hover:-translate-y-0.5 hover:shadow-md",
         ended && "opacity-75",
         className,
       )}
     >
+      <Link
+        to={`/events/${event.id}`}
+        className="flex flex-1 flex-col outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
       <div className="relative aspect-[16/7] overflow-hidden bg-gradient-to-br from-brand-soft to-secondary">
         {event.imageUrl ? (
           <img
@@ -87,6 +113,11 @@ export function EventCard({ event, className }: { event: EventCardData; classNam
           {event.feeType === "free" && (
             <Badge variant="outline" className="border-emerald-200 font-normal text-emerald-700">
               {FEE_LABEL.free}
+            </Badge>
+          )}
+          {editionCount != null && (
+            <Badge variant="outline" className="font-normal">
+              全{editionCount}回
             </Badge>
           )}
         </div>
@@ -126,7 +157,24 @@ export function EventCard({ event, className }: { event: EventCardData; classNam
           {event.organizer && <span className="ml-auto truncate">{event.organizer}</span>}
         </div>
       </div>
-    </Link>
+      </Link>
+      {shownTags.length > 0 && (
+        <div className="flex flex-nowrap items-center gap-1 overflow-hidden px-4 pb-4">
+          {shownTags.map((tag) => (
+            <Link
+              key={tag.slug}
+              to={tagFilterHref(tag.slug, location.pathname, location.search)}
+              className="inline-flex max-w-full shrink min-w-0"
+            >
+              <Badge variant="outline" className="max-w-full font-normal">
+                <span className="truncate">{tag.name}</span>
+              </Badge>
+            </Link>
+          ))}
+          {extraTags > 0 && <span className="shrink-0 text-xs text-muted-foreground">+{extraTags}</span>}
+        </div>
+      )}
+    </article>
   );
 }
 
