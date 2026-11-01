@@ -5,6 +5,7 @@ import { createDb } from "~/.server/db";
 import { activityReports, comments } from "~/.server/db/schema";
 import { getReport, listReports, resolveReport, setEventStatus } from "~/.server/services/admin";
 import { setActivityStatus } from "~/.server/services/activities";
+import { hideEndorsement } from "~/.server/services/endorsements";
 import { recountEventCounters } from "~/.server/services/interactions";
 import { requireAdmin } from "~/.server/session";
 import { AdminTitle, StatusBadge } from "~/components/admin";
@@ -62,6 +63,9 @@ export async function action({ request, context }: Route.ActionArgs) {
           body: { userId: report.targetId, banReason: note ?? "利用ガイドライン違反" },
           headers: request.headers,
         });
+        break;
+      case "endorsement":
+        await hideEndorsement(db, report.targetId);
         break;
     }
     await resolveReport(db, report.id, admin.id, "resolved", note ?? "対象を非公開にしました");

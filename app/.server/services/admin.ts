@@ -53,7 +53,7 @@ export async function listReports(db: Database, status: "open" | "all") {
     .limit(100);
 
   const ids = (type: string) => rows.filter((r) => r.report.targetType === type).map((r) => r.report.targetId);
-  const [evs, cms, acts, usrs] = await Promise.all([
+  const [evs, cms, acts, usrs, endorsements] = await Promise.all([
     ids("event").length
       ? db.select({ id: events.id, title: events.title, status: events.status }).from(events).where(inArray(events.id, ids("event")))
       : [],
@@ -71,6 +71,17 @@ export async function listReports(db: Database, status: "open" | "all") {
       : [],
     ids("user").length
       ? db.select({ id: user.id, name: user.name, banned: user.banned }).from(user).where(inArray(user.id, ids("user")))
+      : [],
+    ids("endorsement").length
+      ? db
+          .select({
+            id: eventEndorsements.id,
+            comment: eventEndorsements.comment,
+            status: eventEndorsements.status,
+            eventId: eventEndorsements.eventId,
+          })
+          .from(eventEndorsements)
+          .where(inArray(eventEndorsements.id, ids("endorsement")))
       : [],
   ]);
 
@@ -92,6 +103,15 @@ export async function listReports(db: Database, status: "open" | "all") {
     } else if (report.targetType === "user") {
       const u = usrs.find((x) => x.id === report.targetId);
       if (u) target = { label: u.name, href: `/users/${u.id}`, status: u.banned ? "banned" : "active" };
+    } else if (report.targetType === "endorsement") {
+      const e = endorsements.find((x) => x.id === report.targetId);
+      if (e) {
+        target = {
+          label: (e.comment || "おすすめ").slice(0, 80),
+          href: `/events/${e.eventId}#endorsements`,
+          status: e.status,
+        };
+      }
     }
     return { ...report, reporterName, target };
   });
