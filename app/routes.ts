@@ -37,6 +37,7 @@ export default [
 
   // Static pages
   route("guidelines", "routes/guidelines.tsx"),
+  route("ai-connect", "routes/ai-connect.tsx"),
 
   // Resource routes
   route("api/auth/*", "routes/api.auth.$.ts"),

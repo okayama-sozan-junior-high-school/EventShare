@@ -204,7 +204,10 @@ export default function Chat({ loaderData }: Route.ComponentProps) {
         <header className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
           <Sparkles className="size-5 text-primary" aria-hidden />
           <h1 className="font-bold">AIでイベントを探す</h1>
-          <span className="ml-auto text-xs text-muted-foreground">
+          <Link to="/ai-connect" className="ml-auto text-xs text-primary hover:underline">
+            AIから使う
+          </Link>
+          <span className="text-xs text-muted-foreground">
             {aiEnabled ? "登録済みのイベントだけを紹介します" : "簡易モード（AI未接続・ルールベースで検索）"}
           </span>
         </header>
