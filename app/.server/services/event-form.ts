@@ -22,12 +22,13 @@ export type EventFormValues = {
   officialUrl?: string;
   applicationUrl?: string;
   categoryIds?: string[];
+  tags?: string[];
   importedImageId?: string;
   sourceUrl?: string;
 };
 
 export function parseEventForm(form: FormData, timeZone: string) {
-  const raw = formDataToObject(form, ["categoryIds"]);
+  const raw = formDataToObject(form, ["categoryIds", "tags"]);
   const parsed = eventInputSchema(timeZone).safeParse(raw);
   if (!parsed.success) {
     return {

@@ -16,16 +16,19 @@ import { z } from "zod";
 import { formatDateTime, zonedLocalToDate, zonedParts } from "~/lib/datetime";
 import { editionLabelFrom } from "~/lib/edition";
 import { getEventPhase, type EventPhase } from "~/lib/event-phase";
-import { normalizeUrl } from "~/lib/url";
-import { escapeLike, normalizeForMatch, truncate } from "~/lib/text";
 import type { SortKey } from "~/lib/labels";
+import { MAX_TAG_LENGTH, MAX_TAGS_PER_EVENT, normalizeTagName, TAG_FACET_ORDER } from "~/lib/tags";
+import { escapeLike, normalizeForMatch, truncate } from "~/lib/text";
+import { normalizeUrl } from "~/lib/url";
 import type { Database } from "../db";
 import {
   categories,
   eventCategories,
   eventContributions,
+  eventTags,
   events,
   eventSources,
+  tags,
   type Event,
 } from "../db/schema";
 import {
@@ -37,6 +40,12 @@ import {
 import { ensureSeriesFor } from "./series";
 
 export type CategoryRef = { id: number; slug: string; name: string };
+export type TagRef = { name: string; slug: string };
+
+const FACET_RANK = Object.fromEntries(TAG_FACET_ORDER.map((facet, index) => [facet, index])) as Record<
+  string,
+  number
+>;
 
 export type EventCard = {
   id: string;
@@ -58,6 +67,7 @@ export type EventCard = {
   endorsementCount: number;
   editionLabel: string | null;
   seriesId: string | null;
+  tags: TagRef[];
   createdAt: Date;
 };
 
@@ -95,10 +105,43 @@ export async function getCategoriesForEvents(db: Database, eventIds: string[]) {
   return map;
 }
 
+/** Active tags for a page of events, one query. Hidden tags stay off public cards. */
+export async function getTagsForEvents(db: Database, eventIds: string[]) {
+  const map = new Map<string, TagRef[]>();
+  if (eventIds.length === 0) return map;
+  const rows = await db
+    .select({
+      eventId: eventTags.eventId,
+      name: tags.name,
+      slug: tags.slug,
+      facet: tags.facet,
+    })
+    .from(eventTags)
+    .innerJoin(tags, eq(tags.id, eventTags.tagId))
+    .where(and(inArray(eventTags.eventId, eventIds), eq(tags.status, "active")));
+  const grouped = new Map<string, { name: string; slug: string; facet: string }[]>();
+  for (const row of rows) {
+    const list = grouped.get(row.eventId) ?? [];
+    list.push(row);
+    grouped.set(row.eventId, list);
+  }
+  for (const [eventId, list] of grouped) {
+    list.sort(
+      (a, b) => (FACET_RANK[a.facet] ?? 0) - (FACET_RANK[b.facet] ?? 0) || a.name.localeCompare(b.name, "ja"),
+    );
+    map.set(
+      eventId,
+      list.map((tag) => ({ name: tag.name, slug: tag.slug })),
+    );
+  }
+  return map;
+}
+
 export function toEventCard(
   e: Event,
   cats: CategoryRef[],
   now: Date,
+  eventTagList: TagRef[] = [],
 ): EventCard {
   return {
     id: e.id,
@@ -120,16 +163,18 @@ export function toEventCard(
     endorsementCount: e.endorsementCount,
     editionLabel: e.editionLabel,
     seriesId: e.seriesId,
+    tags: eventTagList,
     createdAt: e.createdAt,
   };
 }
 
 export async function toEventCards(db: Database, rows: Event[], now: Date) {
-  const cats = await getCategoriesForEvents(
-    db,
-    rows.map((r) => r.id),
-  );
-  return rows.map((r) => toEventCard(r, cats.get(r.id) ?? [], now));
+  const ids = rows.map((r) => r.id);
+  const [cats, tagMap] = await Promise.all([
+    getCategoriesForEvents(db, ids),
+    getTagsForEvents(db, ids),
+  ]);
+  return rows.map((r) => toEventCard(r, cats.get(r.id) ?? [], now, tagMap.get(r.id) ?? []));
 }
 
 // ---------------------------------------------------------------------------
@@ -141,6 +186,33 @@ const DAY = 86_400_000;
 export const searchParamsSchema = z.object({
   q: z.string().trim().max(100).optional().catch(undefined),
   category: z.array(z.string().max(50)).max(20).catch([]),
+  /** Tag slugs. An event must have every one of them. */
+  tag: z
+    .array(z.string())
+    .catch([])
+    .transform((values) => {
+      const out: string[] = [];
+      for (const value of values) {
+        const slug = normalizeTagName(value);
+        if (!slug || slug.length > MAX_TAG_LENGTH || out.includes(slug)) continue;
+        out.push(slug);
+        if (out.length >= MAX_TAGS_PER_EVENT) break;
+      }
+      return out;
+    }),
+  /** Start month 1–12. An event matches if its month is any of these. */
+  month: z
+    .array(z.string())
+    .catch([])
+    .transform((values) => {
+      const out: number[] = [];
+      for (const value of values) {
+        const month = Math.trunc(Number(value));
+        if (month < 1 || month > 12 || out.includes(month)) continue;
+        out.push(month);
+      }
+      return out;
+    }),
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().catch(undefined),
   to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().catch(undefined),
   deadline: z.enum(["open", "7d", "30d"]).optional().catch(undefined),
@@ -155,12 +227,16 @@ export const searchParamsSchema = z.object({
 
 export type EventSearchParams = z.infer<typeof searchParamsSchema>;
 
+const MULTI_SEARCH_KEYS = new Set(["category", "tag", "month"]);
+
 export function parseSearchParams(sp: URLSearchParams): EventSearchParams {
   const raw: Record<string, unknown> = {};
   for (const key of new Set(sp.keys())) {
-    raw[key] = key === "category" ? sp.getAll(key) : sp.get(key) || undefined;
+    raw[key] = MULTI_SEARCH_KEYS.has(key) ? sp.getAll(key) : sp.get(key) || undefined;
   }
   raw.category ??= [];
+  raw.tag ??= [];
+  raw.month ??= [];
   return searchParamsSchema.parse(raw);
 }
 
@@ -217,6 +293,21 @@ export async function buildSearchConditions(
       ),
     );
   }
+  if (p.tag.length > 0) {
+    where.push(
+      inArray(
+        events.id,
+        db
+          .select({ id: eventTags.eventId })
+          .from(eventTags)
+          .innerJoin(tags, eq(tags.id, eventTags.tagId))
+          .where(and(inArray(tags.slug, p.tag), eq(tags.status, "active")))
+          .groupBy(eventTags.eventId)
+          .having(sql`count(distinct ${tags.id}) = ${p.tag.length}`),
+      ),
+    );
+  }
+  if (p.month.length > 0) where.push(inArray(events.startMonth, p.month));
   if (p.from) {
     const from = zonedLocalToDate(p.from, timeZone);
     if (from) where.push(gte(effectiveEnd, from.getTime()));
