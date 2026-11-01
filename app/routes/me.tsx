@@ -3,6 +3,7 @@ import { Bookmark, Settings } from "lucide-react";
 import { Link } from "react-router";
 import { createDb } from "~/.server/db";
 import { eventBookmarks, events } from "~/.server/db/schema";
+import { listWatchedSeries } from "~/.server/services/series";
 import { listActivities } from "~/.server/services/activities";
 import { toEventCards } from "~/.server/services/events";
 import {
@@ -40,7 +41,7 @@ export async function loader({ context, request }: Route.LoaderArgs) {
   const db = createDb();
   const now = new Date();
   const me = (await getUserById(db, sessionUser.id))!;
-  const [interests, bookmarks, posted, participated, activities, contributions] = await Promise.all([
+  const [interests, bookmarks, posted, participated, activities, contributions, watches] = await Promise.all([
     getInterests(db, me.id),
     db
       .select({ event: events })
@@ -54,6 +55,7 @@ export async function loader({ context, request }: Route.LoaderArgs) {
     eventsParticipatedBy(db, me.id).then((rows) => toEventCards(db, rows, now)),
     listActivities(db, { userId: me.id, limit: 50 }),
     contributionsBy(db, me.id),
+    listWatchedSeries(db, me.id),
   ]);
   return {
     me: { id: me.id, name: me.name, grade: me.grade, bio: me.bio, visibility: me.profileVisibility },
@@ -63,11 +65,12 @@ export async function loader({ context, request }: Route.LoaderArgs) {
     participated,
     activities,
     contributions,
+    watches,
   };
 }
 
 export default function MyPage({ loaderData }: Route.ComponentProps) {
-  const { me, interests, bookmarks, posted, participated, activities, contributions } = loaderData;
+  const { me, interests, bookmarks, posted, participated, activities, contributions, watches } = loaderData;
   const tz = useTimeZone();
   return (
     <PageContainer className="max-w-5xl">
@@ -90,6 +93,27 @@ export default function MyPage({ loaderData }: Route.ComponentProps) {
         }
       />
       <p className="mt-2 px-1 text-xs text-muted-foreground">プロフィールの公開範囲: {VISIBILITY_LABEL[me.visibility]}</p>
+
+      {watches.length > 0 && (
+        <section className="mt-6" aria-labelledby="watched-series">
+          <h2 id="watched-series" className="text-sm font-semibold">
+            ウォッチ中のシリーズ
+          </h2>
+          <ul className="mt-2 divide-y rounded-xl border bg-card">
+            {watches.map((series) => (
+              <li key={series.id}>
+                <Link
+                  to={`/series/${series.id}`}
+                  className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm hover:bg-accent"
+                >
+                  <span className="truncate font-medium">{series.title}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">全{series.count}回</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <Tabs defaultValue="bookmarks" className="mt-6">
         <TabsList className="flex h-auto w-full flex-wrap justify-start">

@@ -83,6 +83,7 @@ export async function action({ request, context }: Route.ActionArgs) {
       eventSoon: form.get("eventSoon") === "on",
       comment: form.get("comment") === "on",
       reaction: form.get("reaction") === "on",
+      newEdition: form.get("newEdition") === "on",
     });
     return { section: intent, ok: true, message: "通知設定を保存しました" } satisfies ActionResult;
   }
@@ -247,6 +248,7 @@ export default function Settings({ loaderData }: Route.ComponentProps) {
                   ["eventSoon", "event_soon", "お気に入り・参加予定イベントの開催2日前"],
                   ["comment", "comment", "投稿・コメントしたイベントに新しいコメントがあったとき"],
                   ["reaction", "reaction", "自分の投稿にいいね・お気に入りがあったとき"],
+                  ["newEdition", "new_edition", "ウォッチ中のシリーズや、お気に入り・参加した回の新しい回が登録されたとき"],
                 ] as const
               ).map(([name, type, description]) => (
                 <div key={name} className="flex items-center justify-between gap-4 rounded-lg border p-3">

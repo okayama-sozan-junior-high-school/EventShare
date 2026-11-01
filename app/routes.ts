@@ -15,6 +15,7 @@ export default [
   route("events/:id", "routes/events.$id.tsx"),
   route("events/:id/edit", "routes/events.$id.edit.tsx"),
   route("events/:id/calendar.ics", "routes/events.$id.ics.ts"),
+  route("series/:id", "routes/series.$id.tsx"),
   route("calendar", "routes/calendar.tsx"),
   route("chat", "routes/chat.tsx"),
 

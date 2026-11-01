@@ -67,6 +67,11 @@ export const GRADE_OPTIONS = [
   "その他",
 ] as const;
 
+export const SERIES_CADENCE_LABEL = {
+  yearly: "毎年",
+  twice_yearly: "年2回",
+} as const;
+
 export const SORT_OPTIONS = {
   new: "新着順",
   start: "開催日が近い順",
