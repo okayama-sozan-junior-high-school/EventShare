@@ -81,7 +81,7 @@ export async function notify(db: Database, userIds: string[], input: NotifyInput
   for (const batch of chunkForD1(rows, 9)) {
     await db.insert(notifications).values(batch).onConflictDoNothing();
   }
-  return rows.length;
+  return recipients;
 }
 
 export async function notifyNewEvent(
@@ -89,8 +89,10 @@ export async function notifyNewEvent(
   event: { id: string; title: string },
   categoryIds: number[],
   actorId: string,
+  excludeUserIds: Iterable<string> = [],
 ) {
-  if (categoryIds.length === 0) return 0;
+  if (categoryIds.length === 0) return [];
+  const exclude = new Set(excludeUserIds);
   const interested = await db
     .selectDistinct({ userId: userInterests.userId })
     .from(userInterests)
@@ -98,7 +100,7 @@ export async function notifyNewEvent(
     .limit(1000);
   return notify(
     db,
-    interested.map((r) => r.userId),
+    interested.map((r) => r.userId).filter((id) => !exclude.has(id)),
     {
       type: "new_event",
       title: "興味のある分野の新しいイベントが投稿されました",
@@ -179,14 +181,14 @@ export async function sendReminders(db: Database, now: Date, timeZone: string) {
     )
     .limit(5000);
   for (const row of deadlines) {
-    sent += await notify(db, [row.userId], {
+    sent += (await notify(db, [row.userId], {
       type: "deadline_soon",
       title: "お気に入りイベントの応募締切が近づいています",
       body: `${row.title}（締切 ${formatShortDateTime(row.deadline!, timeZone)}）`,
       link: `/events/${row.eventId}`,
       eventId: row.eventId,
       dedupeKey: (u) => `deadline_soon:${row.eventId}:${u}`,
-    });
+    })).length;
   }
 
   const startWindow = and(
@@ -209,14 +211,14 @@ export async function sendReminders(db: Database, now: Date, timeZone: string) {
       .limit(5000)),
   ];
   for (const row of upcoming) {
-    sent += await notify(db, [row.userId], {
+    sent += (await notify(db, [row.userId], {
       type: "event_soon",
       title: "もうすぐイベントの開催日です",
       body: `${row.title}（${formatShortDateTime(row.startAt!, timeZone)}〜）`,
       link: `/events/${row.eventId}`,
       eventId: row.eventId,
       dedupeKey: (u) => `event_soon:${row.eventId}:${u}`,
-    });
+    })).length;
   }
   return sent;
 }

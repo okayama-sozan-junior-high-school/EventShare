@@ -32,6 +32,12 @@ export function eventInputSchema(timeZone: string) {
       importedImageId: z.string().uuid().optional().or(z.literal("")),
       removeImage: z.literal("on").optional(),
       sourceUrl: optionalHttpUrl,
+      /** Set when posting the next edition of an existing series. Invalid values are ignored. */
+      seriesId: z
+        .string()
+        .trim()
+        .optional()
+        .transform((value) => (value && z.string().uuid().safeParse(value).success ? value : undefined)),
     })
     .superRefine((v, ctx) => {
       if (v.startAt && v.endAt && v.endAt < v.startAt) {

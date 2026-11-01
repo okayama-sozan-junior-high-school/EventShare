@@ -29,13 +29,14 @@ const WINDOW_MS = 400 * 86_400_000;
 export async function findDuplicateCandidates(
   db: Database,
   input: DuplicateComparable,
-  options: { excludeId?: string; timeZone: string; limit?: number },
+  options: { excludeId?: string; excludeSeriesId?: string; timeZone: string; limit?: number },
 ): Promise<DuplicateCandidate[]> {
   const config = await getDuplicateConfig(db);
   const normalizedUrl = normalizeUrl(input.officialUrl);
 
   const scope = [eq(events.status, "published")];
   if (options.excludeId) scope.push(ne(events.id, options.excludeId));
+  if (options.excludeSeriesId) scope.push(ne(events.seriesId, options.excludeSeriesId));
 
   const pools = [];
   if (input.startAt) {

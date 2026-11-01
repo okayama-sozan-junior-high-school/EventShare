@@ -34,7 +34,7 @@ import {
   type EventField,
   type EventInput,
 } from "../validation/event";
-import { ensureSeriesFor } from "./series";
+import { adoptSeries, ensureSeriesFor } from "./series";
 
 export type CategoryRef = { id: number; slug: string; name: string };
 
@@ -413,7 +413,9 @@ export async function createEvent(
 ) {
   const id = crypto.randomUUID();
   const fields = pickFields(input);
-  const seriesId = await ensureSeriesFor(db, { title: fields.title, userId });
+  const seriesId =
+    (input.seriesId ? await adoptSeries(db, input.seriesId) : null) ??
+    (await ensureSeriesFor(db, { title: fields.title, userId }));
   await db.insert(events).values({
     id,
     ...fields,
