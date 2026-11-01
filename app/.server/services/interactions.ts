@@ -3,6 +3,7 @@ import type { Database } from "../db";
 import {
   comments,
   eventBookmarks,
+  eventEndorsements,
   eventLikes,
   eventParticipations,
   events,
@@ -12,15 +13,26 @@ import {
   REPORT_TARGETS,
 } from "../db/schema";
 
-async function recount(db: Database, eventId: string) {
-  await db
+/** Counter update statement, so callers can put it in the same `db.batch` as the write. */
+export function eventCounterUpdate(db: Database, eventId: string) {
+  return db
     .update(events)
     .set({
       likeCount: sql`(select count(*) from ${eventLikes} where ${eventLikes.eventId} = ${eventId})`,
       bookmarkCount: sql`(select count(*) from ${eventBookmarks} where ${eventBookmarks.eventId} = ${eventId})`,
       commentCount: sql`(select count(*) from ${comments} where ${comments.eventId} = ${eventId} and ${comments.status} = 'visible')`,
+      endorsementCount: sql`(select count(*) from ${eventEndorsements} where ${eventEndorsements.eventId} = ${eventId} and ${eventEndorsements.status} = 'visible')`,
     })
     .where(eq(events.id, eventId));
+}
+
+/** Participation insert that does nothing when the row already exists. Does not recount. */
+export function participationInsert(db: Database, userId: string, eventId: string) {
+  return db.insert(eventParticipations).values({ userId, eventId }).onConflictDoNothing();
+}
+
+async function recount(db: Database, eventId: string) {
+  await eventCounterUpdate(db, eventId);
 }
 
 type ToggleTable = typeof eventLikes | typeof eventBookmarks | typeof eventParticipations;

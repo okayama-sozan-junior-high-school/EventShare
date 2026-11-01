@@ -13,7 +13,8 @@ import {
   type SQL,
 } from "drizzle-orm";
 import { z } from "zod";
-import { formatDateTime, zonedLocalToDate } from "~/lib/datetime";
+import { formatDateTime, zonedLocalToDate, zonedParts } from "~/lib/datetime";
+import { editionLabelFrom } from "~/lib/edition";
 import { getEventPhase, type EventPhase } from "~/lib/event-phase";
 import { normalizeUrl } from "~/lib/url";
 import { escapeLike, normalizeForMatch, truncate } from "~/lib/text";
@@ -33,6 +34,7 @@ import {
   type EventField,
   type EventInput,
 } from "../validation/event";
+import { ensureSeriesFor } from "./series";
 
 export type CategoryRef = { id: number; slug: string; name: string };
 
@@ -53,6 +55,9 @@ export type EventCard = {
   likeCount: number;
   bookmarkCount: number;
   commentCount: number;
+  endorsementCount: number;
+  editionLabel: string | null;
+  seriesId: string | null;
   createdAt: Date;
 };
 
@@ -112,6 +117,9 @@ export function toEventCard(
     likeCount: e.likeCount,
     bookmarkCount: e.bookmarkCount,
     commentCount: e.commentCount,
+    endorsementCount: e.endorsementCount,
+    editionLabel: e.editionLabel,
+    seriesId: e.seriesId,
     createdAt: e.createdAt,
   };
 }
@@ -141,7 +149,7 @@ export const searchParamsSchema = z.object({
   fee: z.enum(["free", "paid"]).optional().catch(undefined),
   audience: z.string().trim().max(50).optional().catch(undefined),
   status: z.enum(["upcoming", "ended", "all"]).catch("upcoming"),
-  sort: z.enum(["new", "start", "deadline", "popular"]).catch("start"),
+  sort: z.enum(["new", "start", "deadline", "popular", "recommended"]).catch("start"),
   page: z.coerce.number().int().min(1).max(500).catch(1),
 });
 
@@ -256,6 +264,13 @@ export function orderFor(sort: SortKey, now: Date) {
         ),
         desc(events.createdAt),
       ];
+    case "recommended":
+      return [
+        desc(
+          sql`${events.endorsementCount} * 3 + ${events.bookmarkCount} + ${events.likeCount}`,
+        ),
+        desc(events.startAt),
+      ];
     case "start":
     default:
       return [sql`${events.startAt} IS NULL`, asc(events.startAt)];
@@ -346,6 +361,11 @@ function pickFields(input: EventInput): FieldValues {
   return Object.fromEntries(EVENT_FIELDS.map((f) => [f, input[f]])) as FieldValues;
 }
 
+/** `events.start_month`: always computed in the app time zone, never in SQL. */
+function startMonthOf(startAt: Date | null | undefined, timeZone: string) {
+  return startAt ? zonedParts(startAt, timeZone).month : null;
+}
+
 async function replaceCategories(db: Database, eventId: string, ids: number[]) {
   const valid = await db
     .select({ id: categories.id })
@@ -389,9 +409,11 @@ export async function createEvent(
   input: EventInput,
   userId: string,
   imageMediaId: string | null,
+  timeZone: string,
 ) {
   const id = crypto.randomUUID();
   const fields = pickFields(input);
+  const seriesId = await ensureSeriesFor(db, { title: fields.title, userId });
   await db.insert(events).values({
     id,
     ...fields,
@@ -399,6 +421,9 @@ export async function createEvent(
     createdById: userId,
     normalizedTitle: normalizeForMatch(fields.title),
     normalizedOfficialUrl: normalizeUrl(fields.officialUrl),
+    seriesId,
+    editionLabel: editionLabelFrom(fields.title, fields.startAt, timeZone),
+    startMonth: startMonthOf(fields.startAt, timeZone),
   });
   await replaceCategories(db, id, input.categoryIds);
   await addSources(db, id, userId, [
@@ -424,7 +449,7 @@ export async function updateEvent(
   existing: Event,
   input: EventInput,
   userId: string,
-  options: { imageMediaId: string | null | undefined; asAdmin: boolean },
+  options: { imageMediaId: string | null | undefined; asAdmin: boolean; timeZone: string },
 ) {
   const fields = pickFields(input);
   const changes: ChangeSet = {};
@@ -452,6 +477,7 @@ export async function updateEvent(
       ...(imageChanged ? { imageMediaId: options.imageMediaId } : {}),
       normalizedTitle: normalizeForMatch(fields.title),
       normalizedOfficialUrl: normalizeUrl(fields.officialUrl),
+      startMonth: startMonthOf(fields.startAt, options.timeZone),
       updatedAt: new Date(),
     })
     .where(eq(events.id, existing.id));
@@ -525,6 +551,7 @@ export async function addInfoToEvent(
         ...(updates.officialUrl
           ? { normalizedOfficialUrl: normalizeUrl(updates.officialUrl) }
           : {}),
+        ...(updates.startAt ? { startMonth: startMonthOf(updates.startAt, options.timeZone) } : {}),
         updatedAt: new Date(),
       })
       .where(eq(events.id, existing.id));

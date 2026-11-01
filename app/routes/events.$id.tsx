@@ -19,6 +19,14 @@ import { useState } from "react";
 import { data, Link, redirect, useFetcher } from "react-router";
 import { createDb } from "~/.server/db";
 import { listActivities } from "~/.server/services/activities";
+import {
+  endorsementSummary,
+  getEndorsementState,
+  listEndorsements,
+  listOwnReportsForEvent,
+  removeEndorsement,
+  upsertEndorsement,
+} from "~/.server/services/endorsements";
 import { getEventExtras } from "~/.server/services/event-detail";
 import { getEvent, mediaUrl } from "~/.server/services/events";
 import {
@@ -36,10 +44,12 @@ import { notifyComment, notifyReaction } from "~/.server/services/notifications"
 import { getUserById } from "~/.server/services/users";
 import { enforceRateLimit } from "~/.server/rate-limit";
 import { getRequestInfo, getUser, isAdmin, requireUser } from "~/.server/session";
+import { endorsementSchema } from "~/.server/validation/endorsement";
 import { commentSchema } from "~/.server/validation/interaction";
 import { EVENT_FIELD_LABEL } from "~/.server/validation/event";
 import { ActivityCard } from "~/components/activities/activity-card";
 import { DeadlineText, placeLabel } from "~/components/events/event-card";
+import { EndorsementForm } from "~/components/events/endorsement-form";
 import { PhaseBadge } from "~/components/events/phase-badge";
 import { ExternalLink, Linkified } from "~/components/external-link";
 import { PageContainer } from "~/components/page-header";
@@ -53,7 +63,8 @@ import { Textarea } from "~/components/ui/textarea";
 import { formatDateTime, formatRange, formatRelative } from "~/lib/datetime";
 import { getEventPhase, isAcceptingApplications } from "~/lib/event-phase";
 import { useCurrentUser, useTimeZone } from "~/lib/hooks";
-import { FEE_LABEL, FORMAT_LABEL } from "~/lib/labels";
+import { canEndorse } from "~/lib/endorsement";
+import { ENDORSEMENT_AUDIENCE_LABEL, FEE_LABEL, FORMAT_LABEL } from "~/lib/labels";
 import { cn } from "~/lib/utils";
 import type { Route } from "./+types/events.$id";
 
@@ -80,13 +91,18 @@ export async function loader({ params, context }: Route.LoaderArgs) {
     throw data("イベントが見つかりません", { status: 404 });
   }
 
-  const [extras, comments, viewerState, activities, creator] = await Promise.all([
-    getEventExtras(db, event.id),
-    listComments(db, event.id),
-    getViewerState(db, viewer?.id, event.id),
-    listActivities(db, { eventId: event.id, limit: 6 }),
-    event.createdById ? getUserById(db, event.createdById) : null,
-  ]);
+  const [extras, comments, viewerState, activities, creator, endorsements, audienceCounts, mine, ownReports] =
+    await Promise.all([
+      getEventExtras(db, event.id),
+      listComments(db, event.id),
+      getViewerState(db, viewer?.id, event.id),
+      listActivities(db, { eventId: event.id, limit: 6 }),
+      event.createdById ? getUserById(db, event.createdById) : null,
+      listEndorsements(db, { eventId: event.id, viewerIsAdmin: admin }),
+      endorsementSummary(db, [event.id]),
+      viewer ? getEndorsementState(db, { eventId: event.id, userId: viewer.id }) : null,
+      viewer ? listOwnReportsForEvent(db, viewer.id, event.id) : [],
+    ]);
 
   const now = new Date();
   return {
@@ -97,6 +113,10 @@ export async function loader({ params, context }: Route.LoaderArgs) {
     comments,
     viewerState,
     activities,
+    endorsements,
+    audienceCounts: audienceCounts[event.id] ?? { beginner_ok: 0, experienced: 0, anyone: 0 },
+    mine,
+    ownReports,
     canEdit: owner || admin,
     fieldLabels: EVENT_FIELD_LABEL,
   };
@@ -129,6 +149,26 @@ export async function action({ request, params, context }: Route.ActionArgs) {
     case "participate":
     case "unparticipate":
       await setParticipation(db, user.id, event.id, intent === "participate");
+      return { ok: true };
+    case "endorse": {
+      const parsed = endorsementSchema.safeParse({
+        audience: form.get("audience"),
+        comment: form.get("comment"),
+        activityReportId: form.get("activityReportId") ?? "",
+      });
+      if (!parsed.success) {
+        return data({ ok: false, error: parsed.error.issues[0]?.message ?? "入力内容を確認してください" }, { status: 400 });
+      }
+      const result = await upsertEndorsement(db, {
+        eventId: event.id,
+        userId: user.id,
+        ...parsed.data,
+      });
+      if (!result.ok) return data({ ok: false, error: result.error }, { status: result.status });
+      return { ok: true };
+    }
+    case "unendorse":
+      await removeEndorsement(db, { eventId: event.id, userId: user.id });
       return { ok: true };
     case "comment": {
       const parsed = commentSchema.safeParse({ body: form.get("body") });
@@ -379,6 +419,10 @@ export default function EventDetail({ loaderData }: Route.ComponentProps) {
     comments,
     viewerState,
     activities,
+    endorsements,
+    audienceCounts,
+    mine,
+    ownReports,
     canEdit,
     fieldLabels,
   } = loaderData;
@@ -386,6 +430,10 @@ export default function EventDetail({ loaderData }: Route.ComponentProps) {
   const user = useCurrentUser();
   const [showHistory, setShowHistory] = useState(false);
   const accepting = isAcceptingApplications(phase);
+  const audienceLine = (["beginner_ok", "experienced", "anyone"] as const)
+    .filter((key) => audienceCounts[key] > 0)
+    .map((key) => `${ENDORSEMENT_AUDIENCE_LABEL[key]} ${audienceCounts[key]}`)
+    .join(" · ");
 
   return (
     <PageContainer className="max-w-5xl">
@@ -477,6 +525,69 @@ export default function EventDetail({ loaderData }: Route.ComponentProps) {
               </Button>
             )}
           </div>
+
+          <section id="endorsements" className="mt-6 scroll-mt-20 rounded-xl border bg-card p-4 sm:p-5" aria-labelledby="endorsements-title">
+            <h2 id="endorsements-title" className="text-lg font-bold">
+              おすすめする
+            </h2>
+            {audienceLine && <p className="mt-1 text-sm text-muted-foreground">{audienceLine}</p>}
+            <div className="mt-4">
+              <EndorsementForm
+                key={`${mine?.id ?? "new"}:${mine?.audience ?? ""}:${mine?.comment ?? ""}:${mine?.activityReportId ?? ""}:${mine?.status ?? ""}`}
+                eligible={canEndorse(phase, viewerState.participated)}
+                mine={mine}
+                reports={ownReports}
+              />
+            </div>
+            <h3 className="mt-6 text-sm font-semibold">参加した人のおすすめ</h3>
+            {endorsements.length > 0 ? (
+              <ul className="mt-3 grid gap-3">
+                {endorsements.map((item) => (
+                  <li key={item.id} className="rounded-lg border p-4">
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                      <Link to={`/users/${item.userId}`} className="font-semibold hover:underline">
+                        {item.userName}
+                      </Link>
+                      <Badge variant="secondary" className="font-normal">
+                        {ENDORSEMENT_AUDIENCE_LABEL[item.audience]}
+                      </Badge>
+                      {item.status === "hidden" && (
+                        <Badge variant="outline" className="font-normal">
+                          非表示
+                        </Badge>
+                      )}
+                      <span className="text-xs text-muted-foreground">{formatRelative(item.createdAt, new Date())}</span>
+                      {user && user.id !== item.userId && (
+                        <span className="ml-auto">
+                          <ReportDialog
+                            targetType="endorsement"
+                            targetId={item.id}
+                            reasons={["inappropriate", "personal_info", "spam", "other"]}
+                            trigger={
+                              <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground">
+                                報告
+                              </Button>
+                            }
+                          />
+                        </span>
+                      )}
+                    </div>
+                    {item.comment && <p className="mt-2 text-sm leading-relaxed whitespace-pre-wrap">{item.comment}</p>}
+                    {item.activityReport && (
+                      <Link
+                        to={`/activities/${item.activityReport.id}`}
+                        className="mt-2 inline-block text-sm font-medium text-primary hover:underline"
+                      >
+                        活動報告を読む
+                      </Link>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-3 text-sm text-muted-foreground">まだおすすめはありません。</p>
+            )}
+          </section>
 
           <section className="mt-8" aria-labelledby="about">
             <h2 id="about" className="text-lg font-bold">

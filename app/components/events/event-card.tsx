@@ -24,6 +24,9 @@ export type EventCardData = {
   phase: EventPhase;
   likeCount: number;
   commentCount: number;
+  endorsementCount?: number;
+  editionLabel?: string | null;
+  seriesId?: string | null;
 };
 
 export function placeLabel(format: EventCardData["format"], location: string | null) {
@@ -47,7 +50,15 @@ export function DeadlineText({ deadline, phase }: { deadline: Date | null; phase
   );
 }
 
-export function EventCard({ event, className }: { event: EventCardData; className?: string }) {
+export function EventCard({
+  event,
+  className,
+  note,
+}: {
+  event: EventCardData;
+  className?: string;
+  note?: string;
+}) {
   const tz = useTimeZone();
   const ended = event.phase === "ended";
   return (
@@ -90,6 +101,7 @@ export function EventCard({ event, className }: { event: EventCardData; classNam
         <h3 className="line-clamp-2 text-base leading-snug font-semibold group-hover:text-primary">
           {event.title}
         </h3>
+        {note && <p className="text-xs font-medium text-primary">{note}</p>}
         <dl className="mt-auto space-y-1 text-sm text-muted-foreground">
           <div className="flex items-start gap-1.5">
             <dt className="sr-only">開催日時</dt>
@@ -120,6 +132,11 @@ export function EventCard({ event, className }: { event: EventCardData; classNam
           <span className="inline-flex items-center gap-1">
             <MessageCircle className="size-3.5" aria-hidden /> {event.commentCount}
           </span>
+          {(event.endorsementCount ?? 0) > 0 && (
+            <Badge variant="secondary" className="h-5 shrink-0 px-1.5 font-normal">
+              おすすめ {event.endorsementCount}
+            </Badge>
+          )}
           {event.organizer && <span className="ml-auto truncate">{event.organizer}</span>}
         </div>
       </div>

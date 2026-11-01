@@ -4,6 +4,7 @@ import { Link } from "react-router";
 import { createDb } from "~/.server/db";
 import { eventBookmarks, events } from "~/.server/db/schema";
 import { listActivities } from "~/.server/services/activities";
+import { listMyEndorsements } from "~/.server/services/endorsements";
 import { toEventCards } from "~/.server/services/events";
 import {
   contributionsBy,
@@ -14,6 +15,7 @@ import {
 } from "~/.server/services/users";
 import { requireUser } from "~/.server/session";
 import { ActivityCard } from "~/components/activities/activity-card";
+import { EndorsementExcerptList } from "~/components/events/endorsement-excerpt-list";
 import { EmptyState } from "~/components/empty-state";
 import { EventGrid } from "~/components/events/event-card";
 import { PageContainer } from "~/components/page-header";
@@ -40,7 +42,7 @@ export async function loader({ context, request }: Route.LoaderArgs) {
   const db = createDb();
   const now = new Date();
   const me = (await getUserById(db, sessionUser.id))!;
-  const [interests, bookmarks, posted, participated, activities, contributions] = await Promise.all([
+  const [interests, bookmarks, posted, participated, activities, contributions, endorsements] = await Promise.all([
     getInterests(db, me.id),
     db
       .select({ event: events })
@@ -54,6 +56,7 @@ export async function loader({ context, request }: Route.LoaderArgs) {
     eventsParticipatedBy(db, me.id).then((rows) => toEventCards(db, rows, now)),
     listActivities(db, { userId: me.id, limit: 50 }),
     contributionsBy(db, me.id),
+    listMyEndorsements(db, me.id, { includeHidden: true }),
   ]);
   return {
     me: { id: me.id, name: me.name, grade: me.grade, bio: me.bio, visibility: me.profileVisibility },
@@ -63,11 +66,12 @@ export async function loader({ context, request }: Route.LoaderArgs) {
     participated,
     activities,
     contributions,
+    endorsements,
   };
 }
 
 export default function MyPage({ loaderData }: Route.ComponentProps) {
-  const { me, interests, bookmarks, posted, participated, activities, contributions } = loaderData;
+  const { me, interests, bookmarks, posted, participated, activities, contributions, endorsements } = loaderData;
   const tz = useTimeZone();
   return (
     <PageContainer className="max-w-5xl">
@@ -95,6 +99,9 @@ export default function MyPage({ loaderData }: Route.ComponentProps) {
         <TabsList className="flex h-auto w-full flex-wrap justify-start">
           <TabsTrigger value="bookmarks">お気に入り（{bookmarks.length}）</TabsTrigger>
           <TabsTrigger value="participated">参加（{participated.length}）</TabsTrigger>
+          {endorsements.length > 0 && (
+            <TabsTrigger value="endorsements">おすすめしたイベント（{endorsements.length}）</TabsTrigger>
+          )}
           <TabsTrigger value="posted">投稿（{posted.length}）</TabsTrigger>
           <TabsTrigger value="activities">活動報告（{activities.length}）</TabsTrigger>
           <TabsTrigger value="history">投稿・編集履歴</TabsTrigger>
@@ -113,6 +120,11 @@ export default function MyPage({ loaderData }: Route.ComponentProps) {
         <TabsContent value="participated" className="mt-4">
           {participated.length ? <EventGrid events={participated} /> : <EmptyState title="参加予定・参加したイベントはありません" />}
         </TabsContent>
+        {endorsements.length > 0 && (
+          <TabsContent value="endorsements" className="mt-4">
+            <EndorsementExcerptList items={endorsements} />
+          </TabsContent>
+        )}
         <TabsContent value="posted" className="mt-4">
           {posted.length ? (
             <EventGrid events={posted} />

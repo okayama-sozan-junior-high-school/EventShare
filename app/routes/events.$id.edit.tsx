@@ -100,6 +100,7 @@ export async function action({ params, context, request }: Route.ActionArgs) {
     await updateEvent(db, event, parsed.data, user.id, {
       imageMediaId: image.mediaId,
       asAdmin: isAdmin(user),
+      timeZone,
     });
   } else {
     const note = String(form.get("note") ?? "").trim().slice(0, 500) || null;

@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { data } from "react-router";
 
-export type RateLimitKind = "auth" | "write" | "ai" | "fetch";
+export type RateLimitKind = "auth" | "write" | "ai" | "fetch" | "mcp";
 
 function binding(kind: RateLimitKind): RateLimit | undefined {
   switch (kind) {
@@ -13,6 +13,8 @@ function binding(kind: RateLimitKind): RateLimit | undefined {
       return env.RL_AI;
     case "fetch":
       return env.RL_FETCH;
+    case "mcp":
+      return env.RL_MCP;
   }
 }
 

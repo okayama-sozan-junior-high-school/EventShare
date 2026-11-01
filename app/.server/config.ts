@@ -4,6 +4,7 @@ type OptionalSecrets = {
   GROQ_API_KEY?: string;
   OPENAI_API_KEY?: string;
   OPENAI_BASE_URL?: string;
+  MCP_ACCESS_TOKEN?: string;
 };
 
 function list(value: string | undefined) {
@@ -36,6 +37,8 @@ export function getConfig() {
     groqApiKey: optional.GROQ_API_KEY,
     openaiApiKey: optional.OPENAI_API_KEY,
     openaiBaseUrl: optional.OPENAI_BASE_URL || "https://api.openai.com/v1",
+    /** When set, `/mcp` requires `Authorization: Bearer <token>`. */
+    mcpAccessToken: optional.MCP_ACCESS_TOKEN || undefined,
   } as const;
 }
 

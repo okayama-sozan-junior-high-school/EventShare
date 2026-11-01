@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, inArray, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, notExists, or, sql } from "drizzle-orm";
 import { escapeLike } from "~/lib/text";
 import type { Database } from "../db";
 import {
@@ -8,12 +8,17 @@ import {
   eventBookmarks,
   eventCategories,
   eventContributions,
+  eventEndorsements,
   eventLikes,
   eventParticipations,
   events,
+  eventSeries,
   eventSources,
+  eventTags,
   notifications,
   reports,
+  seriesWatches,
+  tags,
   user,
   type Event,
 } from "../db/schema";
@@ -48,7 +53,7 @@ export async function listReports(db: Database, status: "open" | "all") {
     .limit(100);
 
   const ids = (type: string) => rows.filter((r) => r.report.targetType === type).map((r) => r.report.targetId);
-  const [evs, cms, acts, usrs] = await Promise.all([
+  const [evs, cms, acts, usrs, endorsements] = await Promise.all([
     ids("event").length
       ? db.select({ id: events.id, title: events.title, status: events.status }).from(events).where(inArray(events.id, ids("event")))
       : [],
@@ -66,6 +71,17 @@ export async function listReports(db: Database, status: "open" | "all") {
       : [],
     ids("user").length
       ? db.select({ id: user.id, name: user.name, banned: user.banned }).from(user).where(inArray(user.id, ids("user")))
+      : [],
+    ids("endorsement").length
+      ? db
+          .select({
+            id: eventEndorsements.id,
+            comment: eventEndorsements.comment,
+            status: eventEndorsements.status,
+            eventId: eventEndorsements.eventId,
+          })
+          .from(eventEndorsements)
+          .where(inArray(eventEndorsements.id, ids("endorsement")))
       : [],
   ]);
 
@@ -87,6 +103,15 @@ export async function listReports(db: Database, status: "open" | "all") {
     } else if (report.targetType === "user") {
       const u = usrs.find((x) => x.id === report.targetId);
       if (u) target = { label: u.name, href: `/users/${u.id}`, status: u.banned ? "banned" : "active" };
+    } else if (report.targetType === "endorsement") {
+      const e = endorsements.find((x) => x.id === report.targetId);
+      if (e) {
+        target = {
+          label: (e.comment || "おすすめ").slice(0, 80),
+          href: `/events/${e.eventId}#endorsements`,
+          status: e.status,
+        };
+      }
     }
     return { ...report, reporterName, target };
   });
@@ -159,10 +184,46 @@ export async function deleteEventPermanently(db: Database, id: string) {
 }
 
 /**
+ * Batch statements that, only if series `from` has no editions left, move its
+ * watchers to series `to` (dropping duplicates) and delete it.
+ */
+function moveEmptySeries(db: Database, from: string, to: string) {
+  const fromIsEmpty = notExists(db.select({ id: events.id }).from(events).where(eq(events.seriesId, from)));
+  return [
+    db
+      .delete(seriesWatches)
+      .where(
+        and(
+          eq(seriesWatches.seriesId, from),
+          fromIsEmpty,
+          inArray(
+            seriesWatches.userId,
+            db.select({ id: seriesWatches.userId }).from(seriesWatches).where(eq(seriesWatches.seriesId, to)),
+          ),
+        ),
+      ),
+    db
+      .update(seriesWatches)
+      .set({ seriesId: to })
+      .where(and(eq(seriesWatches.seriesId, from), fromIsEmpty)),
+    db.delete(eventSeries).where(and(eq(eventSeries.id, from), fromIsEmpty)),
+    db
+      .update(eventSeries)
+      .set({
+        watchCount: sql`(select count(*) from ${seriesWatches} where ${seriesWatches.seriesId} = ${to})`,
+      })
+      .where(eq(eventSeries.id, to)),
+  ] as const;
+}
+
+/**
  * Merge `source` into `target`: empty fields of the target are filled from the
  * source, and likes / bookmarks / participations / comments / activity reports
- * / sources / history move to the target. The source remains as a redirect
- * (status = merged). Runs as a single D1 batch (transaction).
+ * / endorsements / tags / sources / history move to the target. The source
+ * remains as a redirect (status = merged) inside the target's series; if its
+ * old series is left without editions, the watchers move to the target's
+ * series and the old series is deleted. Runs as a single D1 batch
+ * (transaction).
  */
 export async function mergeEvents(db: Database, source: Event, target: Event, adminId: string) {
   const fill: Record<string, unknown> = {};
@@ -177,9 +238,15 @@ export async function mergeEvents(db: Database, source: Event, target: Event, ad
     }
   }
   if (!target.imageMediaId && source.imageMediaId) fill.imageMediaId = source.imageMediaId;
+  if (fill.startAt) fill.startMonth = source.startMonth;
+  if (!target.seriesId && source.seriesId) fill.seriesId = source.seriesId;
 
   const sId = source.id;
   const tId = target.id;
+  const seriesMove =
+    source.seriesId && target.seriesId && source.seriesId !== target.seriesId
+      ? { from: source.seriesId, to: target.seriesId }
+      : null;
 
   // Move rows keyed by (event, X) without violating the composite keys:
   // drop the source rows the target already has, then re-point the rest.
@@ -226,6 +293,27 @@ export async function mergeEvents(db: Database, source: Event, target: Event, ad
         ),
       ),
     db.update(eventSources).set({ eventId: tId }).where(eq(eventSources.eventId, sId)),
+    db
+      .delete(eventTags)
+      .where(
+        and(
+          eq(eventTags.eventId, sId),
+          inArray(eventTags.tagId, db.select({ id: eventTags.tagId }).from(eventTags).where(eq(eventTags.eventId, tId))),
+        ),
+      ),
+    db.update(eventTags).set({ eventId: tId }).where(eq(eventTags.eventId, sId)),
+    db
+      .delete(eventEndorsements)
+      .where(
+        and(
+          eq(eventEndorsements.eventId, sId),
+          inArray(
+            eventEndorsements.userId,
+            db.select({ id: eventEndorsements.userId }).from(eventEndorsements).where(eq(eventEndorsements.eventId, tId)),
+          ),
+        ),
+      ),
+    db.update(eventEndorsements).set({ eventId: tId }).where(eq(eventEndorsements.eventId, sId)),
     db.update(comments).set({ eventId: tId }).where(eq(comments.eventId, sId)),
     db.update(activityReports).set({ eventId: tId }).where(eq(activityReports.eventId, sId)),
     db.update(eventContributions).set({ eventId: tId }).where(eq(eventContributions.eventId, sId)),
@@ -236,8 +324,19 @@ export async function mergeEvents(db: Database, source: Event, target: Event, ad
       .where(eq(events.id, tId)),
     db
       .update(events)
-      .set({ status: "merged", mergedIntoId: tId, imageMediaId: null, updatedAt: new Date() })
+      .set({
+        status: "merged",
+        mergedIntoId: tId,
+        imageMediaId: null,
+        ...(seriesMove ? { seriesId: seriesMove.to } : {}),
+        updatedAt: new Date(),
+      })
       .where(eq(events.id, sId)),
+    ...(seriesMove ? moveEmptySeries(db, seriesMove.from, seriesMove.to) : []),
+    db
+      .update(tags)
+      .set({ useCount: sql`(select count(*) from ${eventTags} where ${eventTags.tagId} = ${tags.id})` })
+      .where(inArray(tags.id, db.select({ id: eventTags.tagId }).from(eventTags).where(eq(eventTags.eventId, tId)))),
     db.insert(eventContributions).values({
       id: crypto.randomUUID(),
       eventId: tId,

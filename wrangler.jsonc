@@ -53,7 +53,8 @@
 		{ "name": "RL_AUTH", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } },
 		{ "name": "RL_WRITE", "namespace_id": "1002", "simple": { "limit": 30, "period": 60 } },
 		{ "name": "RL_AI", "namespace_id": "1003", "simple": { "limit": 20, "period": 60 } },
-		{ "name": "RL_FETCH", "namespace_id": "1004", "simple": { "limit": 10, "period": 60 } }
+		{ "name": "RL_FETCH", "namespace_id": "1004", "simple": { "limit": 10, "period": 60 } },
+		{ "name": "RL_MCP", "namespace_id": "1005", "simple": { "limit": 60, "period": 60 } }
 	],
 	"triggers": {
 		// 00:00 UTC = 09:00 JST: deadline / event-day reminders
@@ -88,7 +89,8 @@
 				{ "name": "RL_AUTH", "namespace_id": "2001", "simple": { "limit": 10, "period": 60 } },
 				{ "name": "RL_WRITE", "namespace_id": "2002", "simple": { "limit": 30, "period": 60 } },
 				{ "name": "RL_AI", "namespace_id": "2003", "simple": { "limit": 20, "period": 60 } },
-				{ "name": "RL_FETCH", "namespace_id": "2004", "simple": { "limit": 10, "period": 60 } }
+				{ "name": "RL_FETCH", "namespace_id": "2004", "simple": { "limit": 10, "period": 60 } },
+				{ "name": "RL_MCP", "namespace_id": "2005", "simple": { "limit": 60, "period": 60 } }
 			],
 			"triggers": {
 				"crons": ["0 0 * * *"]
@@ -122,7 +124,8 @@
 					{ "name": "RL_AUTH", "namespace_id": "3001", "simple": { "limit": 10, "period": 60 } },
 					{ "name": "RL_WRITE", "namespace_id": "3002", "simple": { "limit": 30, "period": 60 } },
 					{ "name": "RL_AI", "namespace_id": "3003", "simple": { "limit": 20, "period": 60 } },
-					{ "name": "RL_FETCH", "namespace_id": "3004", "simple": { "limit": 10, "period": 60 } }
+					{ "name": "RL_FETCH", "namespace_id": "3004", "simple": { "limit": 10, "period": 60 } },
+					{ "name": "RL_MCP", "namespace_id": "3005", "simple": { "limit": 60, "period": 60 } }
 				]
 			}
 		}

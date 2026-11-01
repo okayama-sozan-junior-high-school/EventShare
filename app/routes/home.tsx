@@ -1,9 +1,11 @@
 import { inArray } from "drizzle-orm";
 import { ArrowRight, Search, Sparkles, Ticket } from "lucide-react";
 import { Form, Link } from "react-router";
+import { getConfig } from "~/.server/config";
 import { createDb } from "~/.server/db";
 import { events, eventCategories } from "~/.server/db/schema";
 import { listActivities } from "~/.server/services/activities";
+import { listRecommendedEvents, listRecurringSoonEvents } from "~/.server/services/endorsements";
 import { getActiveCategories, listEventCards } from "~/.server/services/events";
 import { getInterests } from "~/.server/services/users";
 import { getUser } from "~/.server/session";
@@ -46,16 +48,18 @@ export async function loader({ context }: Route.LoaderArgs) {
     recommendedReason = "popular";
   }
 
-  const [latest, closingSoon, activities, categories] = await Promise.all([
+  const [latest, closingSoon, activities, categories, endorsed, recurringSoon] = await Promise.all([
     listEventCards(db, { sort: "new", limit: 6, now }),
     listEventCards(db, { sort: "deadline", limit: 6, now }).then((list) =>
       list.filter((e) => e.applicationDeadline && e.applicationDeadline > now),
     ),
     listActivities(db, { limit: 4 }),
     getActiveCategories(db),
+    listRecommendedEvents(db, { limit: 6, now }),
+    listRecurringSoonEvents(db, { now, timeZone: getConfig().timeZone, limit: 6 }),
   ]);
 
-  return { recommended, recommendedReason, latest, closingSoon, activities, categories };
+  return { recommended, recommendedReason, latest, closingSoon, activities, categories, endorsed, recurringSoon };
 }
 
 function Section({
@@ -87,19 +91,23 @@ function Section({
   );
 }
 
-function CardRow({ events }: { events: EventCardData[] }) {
+function CardRow({ events, notes }: { events: EventCardData[]; notes?: Record<string, string> }) {
   return (
     <div className="-mx-4 flex snap-x gap-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-3">
       {events.map((e) => (
-        <EventCard key={e.id} event={e} className="w-[78%] shrink-0 snap-start sm:w-auto" />
+        <EventCard key={e.id} event={e} note={notes?.[e.id]} className="w-[78%] shrink-0 snap-start sm:w-auto" />
       ))}
     </div>
   );
 }
 
 export default function Home({ loaderData }: Route.ComponentProps) {
-  const { recommended, recommendedReason, latest, closingSoon, activities, categories } = loaderData;
-  const isEmpty = latest.length === 0;
+  const { recommended, recommendedReason, latest, closingSoon, activities, categories, endorsed, recurringSoon } =
+    loaderData;
+  const noUpcoming = latest.length === 0;
+  const recurringNotes = Object.fromEntries(
+    recurringSoon.map((item) => [item.event.id, `例年${item.typicalDeadlineMonth}月ごろ募集`]),
+  );
 
   return (
     <>
@@ -156,7 +164,25 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         </div>
       </section>
 
-      {isEmpty ? (
+      {endorsed.length > 0 && (
+        <Section
+          title="みんなのおすすめ"
+          description="参加した人が残したおすすめがあるイベントです"
+          href="/events?sort=recommended&status=all"
+        >
+          <CardRow events={endorsed} />
+        </Section>
+      )}
+      {recurringSoon.length > 0 && (
+        <Section
+          title="そろそろ募集の時期"
+          description="例年の締切月からの傾向です。今年の募集は公式サイトで確認してください。"
+        >
+          <CardRow events={recurringSoon.map((item) => item.event)} notes={recurringNotes} />
+        </Section>
+      )}
+
+      {noUpcoming && endorsed.length === 0 && recurringSoon.length === 0 ? (
         <div className="mx-auto max-w-6xl px-4 py-12">
           <EmptyState
             icon={Ticket}
@@ -168,7 +194,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
             </Button>
           </EmptyState>
         </div>
-      ) : (
+      ) : noUpcoming ? null : (
         <>
           <Section
             title="おすすめのイベント"
