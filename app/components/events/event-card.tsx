@@ -24,6 +24,9 @@ export type EventCardData = {
   phase: EventPhase;
   likeCount: number;
   commentCount: number;
+  endorsementCount?: number;
+  editionLabel?: string | null;
+  seriesId?: string | null;
 };
 
 export function placeLabel(format: EventCardData["format"], location: string | null) {
