@@ -105,7 +105,7 @@ export async function action({ request, context }: Route.ActionArgs) {
   if (image.error) {
     return data({ errors: { image: image.error }, values: parsed.values }, { status: 400 });
   }
-  const id = await createEvent(db, input, user.id, image.mediaId ?? null);
+  const id = await createEvent(db, input, user.id, image.mediaId ?? null, timeZone);
   getRequestInfo(context).waitUntil(
     notifyNewEvent(db, { id, title: input.title }, input.categoryIds, user.id),
   );

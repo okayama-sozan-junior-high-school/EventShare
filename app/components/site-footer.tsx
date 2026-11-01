@@ -14,6 +14,7 @@ export function SiteFooter() {
           <Link to="/calendar" className="hover:text-foreground">カレンダー</Link>
           <Link to="/activities" className="hover:text-foreground">活動報告</Link>
           <Link to="/guidelines" className="hover:text-foreground">利用ガイドライン</Link>
+          <Link to="/ai-connect" className="hover:text-foreground">AIから使う</Link>
         </nav>
       </div>
     </footer>

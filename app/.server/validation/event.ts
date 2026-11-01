@@ -72,7 +72,10 @@ export const EVENT_FIELDS = [
 
 export type EventField = (typeof EVENT_FIELDS)[number];
 
-export const EVENT_FIELD_LABEL: Record<EventField | "categories" | "image", string> = {
+export const EVENT_FIELD_LABEL: Record<
+  EventField | "categories" | "image" | "tags" | "series" | "editionLabel",
+  string
+> = {
   title: "イベント名",
   description: "概要",
   startAt: "開催日時",
@@ -88,4 +91,7 @@ export const EVENT_FIELD_LABEL: Record<EventField | "categories" | "image", stri
   applicationUrl: "応募フォームURL",
   categories: "カテゴリ",
   image: "画像",
+  tags: "タグ",
+  series: "開催回のつながり",
+  editionLabel: "回ラベル",
 };

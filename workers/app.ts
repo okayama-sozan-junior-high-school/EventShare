@@ -1,5 +1,6 @@
 import { createRequestHandler, RouterContextProvider } from "react-router";
 import { requestInfoContext } from "../app/.server/context";
+import { handleMcpRequest } from "../app/.server/mcp/handler";
 import { runScheduledJobs } from "../app/.server/services/scheduled";
 import {
   applySecurityHeaders,
@@ -14,6 +15,13 @@ const requestHandler = createRequestHandler(
 
 export default {
   async fetch(request, _env, ctx) {
+    const url = new URL(request.url);
+    // Stateless and cookie-less. Must run before the cross-site POST check,
+    // which would reject browser clients calling from another origin.
+    if (url.pathname === "/mcp" || url.pathname === "/mcp/") {
+      return handleMcpRequest(request);
+    }
+
     const nonce = createNonce();
     const production = import.meta.env.PROD;
 

@@ -73,6 +73,31 @@ CF_REMOTE_BINDINGS=true npm run dev
 
 OpenAI 互換 API を使う場合は `.dev.vars` に `AI_PROVIDER=openai`、`OPENAI_API_KEY`、必要なら `OPENAI_BASE_URL`・`AI_MODEL` を設定してください。
 
+## MCP サーバー
+
+公開イベントを読み取るエンドポイントです（`POST /mcp`、ステートレス、書き込みなし、人名なし）。つなぎ方は起動後に [/ai-connect](http://localhost:5173/ai-connect) でも見られます。
+
+```bash
+npm run dev
+npx @modelcontextprotocol/inspector
+```
+
+Inspector の接続先は `http://localhost:5173/mcp` です。curl で初期化とツール一覧を確認する例:
+
+```bash
+curl -s -X POST http://localhost:5173/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"0"}}}'
+
+curl -s -X POST http://localhost:5173/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
+```
+
+外部の AI から localhost には届きません。プレビュー環境かトンネルを使ってください。`MCP_ACCESS_TOKEN` を設定しているときは `Authorization: Bearer` が必要です。値はリポジトリに書かないでください。
+
 ## 環境変数
 
 `wrangler.jsonc` の `vars`（公開してよい設定）と、シークレット（`.dev.vars` / `wrangler secret put`）に分かれています。
@@ -89,6 +114,8 @@ OpenAI 互換 API を使う場合は `.dev.vars` に `AI_PROVIDER=openai`、`OPE
 | `GROQ_API_KEY` | シークレット | `AI_PROVIDER=groq` の場合 |
 | `OPENAI_API_KEY` | シークレット（任意） | `AI_PROVIDER=openai` の場合のみ |
 | `OPENAI_BASE_URL` | シークレット（任意） | OpenAI 互換 API のベース URL |
+| `MCP_ACCESS_TOKEN` | シークレット（任意） | 設定すると MCP サーバー（`/mcp`）に `Authorization: Bearer <トークン>` が必須になる。未設定なら認証なし（読み取り専用） |
+| `RL_MCP` | レート制限バインディング | MCP サーバーの呼び出し回数制限（IP ごと 60 回/分）。`wrangler.jsonc` の開発・本番・プレビューの 3 環境に定義済み |
 | `CF_REMOTE_BINDINGS` | ローカルのシェル環境変数 | `true` で開発時に Workers AI などのリモートバインディングを使う |
 
 ## スクリプト
