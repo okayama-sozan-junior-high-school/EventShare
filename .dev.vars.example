@@ -8,3 +8,8 @@ BETTER_AUTH_SECRET=replace-with-a-random-32-plus-character-secret
 # Only needed when AI_PROVIDER=openai (OpenAI-compatible Chat Completions API).
 # OPENAI_API_KEY=
 # OPENAI_BASE_URL=https://api.openai.com/v1
+
+# Optional. When set, the MCP endpoint (/mcp) requires
+# "Authorization: Bearer <token>". Unset = no auth (read-only tools).
+# Rate limiting uses the RL_MCP binding in wrangler.jsonc.
+# MCP_ACCESS_TOKEN=

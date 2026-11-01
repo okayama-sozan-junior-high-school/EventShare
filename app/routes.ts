@@ -15,6 +15,8 @@ export default [
   route("events/:id", "routes/events.$id.tsx"),
   route("events/:id/edit", "routes/events.$id.edit.tsx"),
   route("events/:id/calendar.ics", "routes/events.$id.ics.ts"),
+  route("tags", "routes/tags.tsx"),
+  route("tags/:slug", "routes/tags.$slug.tsx"),
   route("calendar", "routes/calendar.tsx"),
   route("chat", "routes/chat.tsx"),
 
@@ -42,6 +44,7 @@ export default [
   route("api/auth/*", "routes/api.auth.$.ts"),
   route("api/chat", "routes/api.chat.ts"),
   route("api/report", "routes/api.report.ts"),
+  route("api/tags", "routes/api.tags.ts"),
   route("media/:id", "routes/media.$id.ts"),
 
   // Admin
@@ -54,6 +57,7 @@ export default [
       route("users", "routes/admin/users.tsx"),
       route("comments", "routes/admin/comments.tsx"),
       route("categories", "routes/admin/categories.tsx"),
+      route("tags", "routes/admin/tags.tsx"),
       route("history", "routes/admin/history.tsx"),
       route("settings", "routes/admin/settings.tsx"),
     ]),

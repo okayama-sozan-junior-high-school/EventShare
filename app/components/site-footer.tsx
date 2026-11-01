@@ -10,6 +10,7 @@ export function SiteFooter() {
         </div>
         <nav className="flex flex-wrap gap-x-4 gap-y-2" aria-label="フッター">
           <Link to="/events" className="hover:text-foreground">イベント一覧</Link>
+          <Link to="/tags" className="hover:text-foreground">タグから探す</Link>
           <Link to="/chat" className="hover:text-foreground">AIで探す</Link>
           <Link to="/calendar" className="hover:text-foreground">カレンダー</Link>
           <Link to="/activities" className="hover:text-foreground">活動報告</Link>

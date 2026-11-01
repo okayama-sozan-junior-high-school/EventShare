@@ -7,6 +7,7 @@ import { createDb } from "~/.server/db";
 import { findDuplicateCandidates } from "~/.server/duplicates/find";
 import { draftToFormValues, parseEventForm, resolveEventImage } from "~/.server/services/event-form";
 import { addInfoToEvent, createEvent, getActiveCategories, getEvent } from "~/.server/services/events";
+import { assertTagUpdate, saveEventTags, TagLimitError } from "~/.server/services/tags";
 import { notifyNewEvent } from "~/.server/services/notifications";
 import { enforceRateLimit } from "~/.server/rate-limit";
 import { getRequestInfo, requireUser } from "~/.server/session";
@@ -85,12 +86,31 @@ export async function action({ request, context }: Route.ActionArgs) {
     if (!target || target.status !== "published") {
       return data({ errors: { _form: "追加先のイベントが見つかりません" }, values: parsed.values }, { status: 400 });
     }
+    if (input.tags.length > 0) {
+      try {
+        await assertTagUpdate(db, { eventId: target.id, names: input.tags, mode: "add" });
+      } catch (error) {
+        if (error instanceof TagLimitError) {
+          return data({ errors: { tags: error.message }, values: parsed.values }, { status: 400 });
+        }
+        throw error;
+      }
+    }
     const image = await resolveEventImage(db, form, user.id, input);
     await addInfoToEvent(db, target, input, user.id, {
       imageMediaId: image.mediaId ?? null,
       note: "重複候補から情報を追加",
       timeZone,
     });
+    if (input.tags.length > 0) {
+      await saveEventTags(db, {
+        eventId: target.id,
+        names: input.tags,
+        userId: user.id,
+        mode: "add",
+        contributionType: "add_info",
+      });
+    }
     throw redirect(`/events/${target.id}?contributed=1`);
   }
 
@@ -105,7 +125,16 @@ export async function action({ request, context }: Route.ActionArgs) {
   if (image.error) {
     return data({ errors: { image: image.error }, values: parsed.values }, { status: 400 });
   }
-  const id = await createEvent(db, input, user.id, image.mediaId ?? null);
+  const id = await createEvent(db, input, user.id, image.mediaId ?? null, timeZone);
+  if (input.tags.length > 0) {
+    await saveEventTags(db, {
+      eventId: id,
+      names: input.tags,
+      userId: user.id,
+      mode: "replace",
+      contributionType: null,
+    });
+  }
   getRequestInfo(context).waitUntil(
     notifyNewEvent(db, { id, title: input.title }, input.categoryIds, user.id),
   );

@@ -4,6 +4,7 @@ import { Form, Link, useNavigation, useSubmit } from "react-router";
 import { getConfig } from "~/.server/config";
 import { createDb } from "~/.server/db";
 import { getActiveCategories, parseSearchParams, searchEvents } from "~/.server/services/events";
+import { getTagsBySlugs } from "~/.server/services/tags";
 import { EmptyState } from "~/components/empty-state";
 import { EventGrid } from "~/components/events/event-card";
 import { PageContainer, PageHeader } from "~/components/page-header";
@@ -22,11 +23,12 @@ export const meta = () => [{ title: "イベントを探す | Event Share" }];
 export async function loader({ request }: Route.LoaderArgs) {
   const db = createDb();
   const params = parseSearchParams(new URL(request.url).searchParams);
-  const [result, categories] = await Promise.all([
+  const [result, categories, tagFilters] = await Promise.all([
     searchEvents(db, params, new Date(), getConfig().timeZone),
     getActiveCategories(db),
+    getTagsBySlugs(db, params.tag),
   ]);
-  return { ...result, params, categories };
+  return { ...result, params, categories, tagFilters };
 }
 
 type Params = Route.ComponentProps["loaderData"]["params"];
@@ -42,7 +44,31 @@ function activeFilterCount(p: Params) {
     p.fee,
     p.audience,
     p.status !== "upcoming",
+    p.tag.length > 0,
+    p.month.length > 0,
   ].filter(Boolean).length;
+}
+
+const MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const;
+
+function eventsHref(params: Params, patch?: (sp: URLSearchParams) => void) {
+  const sp = new URLSearchParams();
+  if (params.q) sp.set("q", params.q);
+  for (const slug of params.category) sp.append("category", slug);
+  for (const slug of params.tag) sp.append("tag", slug);
+  for (const month of params.month) sp.append("month", String(month));
+  if (params.from) sp.set("from", params.from);
+  if (params.to) sp.set("to", params.to);
+  if (params.deadline) sp.set("deadline", params.deadline);
+  if (params.location) sp.set("location", params.location);
+  if (params.format) sp.set("format", params.format);
+  if (params.fee) sp.set("fee", params.fee);
+  if (params.audience) sp.set("audience", params.audience);
+  if (params.status !== "upcoming") sp.set("status", params.status);
+  if (params.sort !== "start") sp.set("sort", params.sort);
+  patch?.(sp);
+  const q = sp.toString();
+  return q ? `/events?${q}` : "/events";
 }
 
 function Filters({
@@ -85,6 +111,26 @@ function Filters({
             まで
           </Label>
           <Input id="f-to" type="date" name="to" defaultValue={params.to} />
+        </div>
+      </fieldset>
+
+      <fieldset className="grid min-w-0 gap-2">
+        <legend className="mb-2 text-sm font-semibold">開催月</legend>
+        <div className="flex flex-wrap gap-1">
+          {MONTHS.map((month) => (
+            <label key={month} className="cursor-pointer">
+              <input
+                type="checkbox"
+                name="month"
+                value={month}
+                defaultChecked={params.month.includes(month)}
+                className="peer sr-only"
+              />
+              <span className="inline-block rounded-full border bg-card px-2 py-0.5 text-xs text-muted-foreground transition peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-foreground peer-focus-visible:ring-3 peer-focus-visible:ring-ring/50">
+                {month}月
+              </span>
+            </label>
+          ))}
         </div>
       </fieldset>
 
@@ -140,7 +186,7 @@ function Filters({
 }
 
 export default function Events({ loaderData }: Route.ComponentProps) {
-  const { items, total, page, pageCount, params, categories } = loaderData;
+  const { items, total, page, pageCount, params, categories, tagFilters } = loaderData;
   const navigation = useNavigation();
   const submit = useSubmit();
   const [showFilters, setShowFilters] = useState(false);
@@ -163,6 +209,11 @@ export default function Events({ loaderData }: Route.ComponentProps) {
 
       <Form method="get" id="search" role="search" className="grid gap-6 lg:grid-cols-[280px_1fr]">
         <div className="lg:col-start-2">
+          <div key={params.tag.join("\0")}>
+            {params.tag.map((slug) => (
+              <input key={slug} type="hidden" name="tag" value={slug} />
+            ))}
+          </div>
           <div className="flex flex-col gap-3 sm:flex-row">
             <div className="flex flex-1 gap-2">
               <Input
@@ -228,6 +279,26 @@ export default function Events({ loaderData }: Route.ComponentProps) {
         </aside>
 
         <div className="lg:col-start-2">
+          {tagFilters.length > 0 && (
+            <div className="mb-3 flex flex-wrap gap-1.5">
+              {tagFilters.map((tag) => (
+                <Link
+                  key={tag.slug}
+                  to={eventsHref(params, (sp) => {
+                    sp.delete("tag");
+                    for (const slug of params.tag) {
+                      if (slug !== tag.slug) sp.append("tag", slug);
+                    }
+                  })}
+                  className="inline-flex items-center gap-1 rounded-full border bg-secondary px-2.5 py-0.5 text-xs text-secondary-foreground hover:bg-accent"
+                >
+                  {tag.name}
+                  <X className="size-3" aria-hidden />
+                  <span className="sr-only">このタグを外す</span>
+                </Link>
+              ))}
+            </div>
+          )}
           <p className="mb-3 text-sm text-muted-foreground" aria-live="polite">
             {total}件のイベント
             {params.status === "upcoming" && "（終了済みを除く）"}

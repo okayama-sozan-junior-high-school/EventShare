@@ -3,6 +3,7 @@ import type { Database } from "../db";
 import {
   comments,
   eventBookmarks,
+  eventEndorsements,
   eventLikes,
   eventParticipations,
   events,
@@ -19,6 +20,7 @@ async function recount(db: Database, eventId: string) {
       likeCount: sql`(select count(*) from ${eventLikes} where ${eventLikes.eventId} = ${eventId})`,
       bookmarkCount: sql`(select count(*) from ${eventBookmarks} where ${eventBookmarks.eventId} = ${eventId})`,
       commentCount: sql`(select count(*) from ${comments} where ${comments.eventId} = ${eventId} and ${comments.status} = 'visible')`,
+      endorsementCount: sql`(select count(*) from ${eventEndorsements} where ${eventEndorsements.eventId} = ${eventId} and ${eventEndorsements.status} = 'visible')`,
     })
     .where(eq(events.id, eventId));
 }
