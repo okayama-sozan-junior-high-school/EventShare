@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseTagInput, tagListError } from "~/lib/tags";
 import { EVENT_FORMATS, FEE_TYPES } from "../db/schema";
 import {
   optionalHttpUrl,
@@ -28,6 +29,22 @@ export function eventInputSchema(timeZone: string) {
         .min(1, "カテゴリを1つ以上選んでください")
         .max(5, "カテゴリは5つまで選べます")
         .transform((ids) => [...new Set(ids)]),
+      /**
+       * Repeated `tags` fields, or one comma / 、 / whitespace separated string.
+       * Normalized, de-duplicated, and rejected (not truncated) past 8 or 20 chars.
+       */
+      tags: z
+        .union([z.string(), z.array(z.string())])
+        .optional()
+        .transform((raw, ctx) => {
+          const names = parseTagInput(raw);
+          const message = tagListError(names);
+          if (message) {
+            ctx.addIssue({ code: "custom", message });
+            return z.NEVER;
+          }
+          return names;
+        }),
       /** Media id of an image fetched during URL import. */
       importedImageId: z.string().uuid().optional().or(z.literal("")),
       removeImage: z.literal("on").optional(),
