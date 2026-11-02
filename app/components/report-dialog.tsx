@@ -19,7 +19,7 @@ import { Textarea } from "~/components/ui/textarea";
 import { useCurrentUser } from "~/lib/hooks";
 import { REPORT_REASON_LABEL } from "~/lib/labels";
 
-type Target = "event" | "comment" | "activity_report" | "user";
+type Target = "event" | "comment" | "activity_report" | "user" | "endorsement";
 type Reason = keyof typeof REPORT_REASON_LABEL;
 
 export function ReportDialog({

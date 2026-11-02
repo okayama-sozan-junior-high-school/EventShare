@@ -2,6 +2,7 @@ import { Lock } from "lucide-react";
 import { data, Link } from "react-router";
 import { createDb } from "~/.server/db";
 import { listActivities } from "~/.server/services/activities";
+import { listMyEndorsements } from "~/.server/services/endorsements";
 import { toEventCards } from "~/.server/services/events";
 import {
   canViewProfile,
@@ -12,6 +13,7 @@ import {
 } from "~/.server/services/users";
 import { getUser } from "~/.server/session";
 import { ActivityCard } from "~/components/activities/activity-card";
+import { EndorsementExcerptList } from "~/components/events/endorsement-excerpt-list";
 import { EmptyState } from "~/components/empty-state";
 import { EventGrid } from "~/components/events/event-card";
 import { PageContainer } from "~/components/page-header";
@@ -40,11 +42,12 @@ export async function loader({ params, context }: Route.LoaderArgs) {
   }
 
   const now = new Date();
-  const [interests, posted, participated, activities] = await Promise.all([
+  const [interests, posted, participated, activities, endorsements] = await Promise.all([
     getInterests(db, target.id),
     eventsPostedBy(db, target.id, 24).then((rows) => toEventCards(db, rows, now)),
     eventsParticipatedBy(db, target.id, 24).then((rows) => toEventCards(db, rows, now)),
     listActivities(db, { userId: target.id, limit: 24 }),
+    listMyEndorsements(db, target.id),
   ]);
   return {
     visible: true as const,
@@ -59,6 +62,7 @@ export async function loader({ params, context }: Route.LoaderArgs) {
     posted,
     participated,
     activities,
+    endorsements,
   };
 }
 
@@ -80,7 +84,7 @@ export default function UserProfile({ loaderData }: Route.ComponentProps) {
       </PageContainer>
     );
   }
-  const { profile, interests, posted, participated, activities, isSelf } = loaderData;
+  const { profile, interests, posted, participated, activities, endorsements, isSelf } = loaderData;
   return (
     <PageContainer className="max-w-5xl">
       <ProfileHeader
@@ -103,6 +107,9 @@ export default function UserProfile({ loaderData }: Route.ComponentProps) {
           <TabsTrigger value="posted">投稿したイベント（{posted.length}）</TabsTrigger>
           <TabsTrigger value="participated">参加したイベント（{participated.length}）</TabsTrigger>
           <TabsTrigger value="activities">活動報告（{activities.length}）</TabsTrigger>
+          {endorsements.length > 0 && (
+            <TabsTrigger value="endorsements">おすすめしたイベント（{endorsements.length}）</TabsTrigger>
+          )}
         </TabsList>
         <TabsContent value="posted" className="mt-4">
           {posted.length ? <EventGrid events={posted} /> : <EmptyState title="投稿したイベントはありません" />}
@@ -114,6 +121,11 @@ export default function UserProfile({ loaderData }: Route.ComponentProps) {
             <EmptyState title="参加したイベントはまだありません" />
           )}
         </TabsContent>
+        {endorsements.length > 0 && (
+          <TabsContent value="endorsements" className="mt-4">
+            <EndorsementExcerptList items={endorsements} />
+          </TabsContent>
+        )}
         <TabsContent value="activities" className="mt-4">
           {activities.length ? (
             <div className="grid gap-3 md:grid-cols-2">
